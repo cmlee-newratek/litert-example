@@ -1,0 +1,57 @@
+# LiteRT Quantization Examples - Raspberry Pi 4 Package (Inference Only)
+# 
+# Purpose: Benchmark execution (inference only, TensorFlow not required)
+# File: benchmark_rpi4.py
+#
+# Installation:
+#   pip install -r requirements-rpi.txt
+#
+# To create models on PC:
+#   pip install -r requirements.txt
+
+# ========================================
+# Inference Only - Lightweight (Recommended)
+# ========================================
+
+# TensorFlow Lite Runtime (inference only)
+# Pros: ~100-200MB memory, fast install, optimized for inference
+# Sufficient for running benchmarks on Raspberry Pi
+tflite-runtime
+
+# NumPy (required)
+numpy>=1.21.0
+
+# ========================================
+# Alternative: TensorFlow (Full Features)
+# ========================================
+# tensorflow==2.11.0
+# Pros: Can download MNIST via tf.keras.datasets
+# Cons: ~1-2GB memory, longer install time
+# 
+# To use instead of tflite-runtime:
+#   1. Comment out tflite-runtime line above
+#   2. Uncomment this line: tensorflow==2.11.0
+
+# Notes:
+# 
+# MNIST data loading (automatic):
+# 1. Load numpy files (.npy) from PC - fastest, no TensorFlow needed
+# 2. Direct HTTP download (urllib, gzip) - no TensorFlow needed
+# 3. tf.keras.datasets (only if TensorFlow installed)
+#
+# Minimal installation for benchmarking:
+#   pip install tflite-runtime numpy
+#   -> Uses .npy files from PC or automatic HTTP download
+#
+# Raspberry Pi recommendations:
+# 
+# - Pi 4 (all versions) - Recommended
+#   -> tflite-runtime + numpy (default install above)
+#   -> Memory: 100-200MB, optimized for inference
+#
+# - Pi Zero/3 and low-end devices
+#   -> tflite-runtime + numpy + .npy files from PC
+#   -> Saves HTTP download time
+#
+# ARMv8 optimized builds (optional):
+#   https://github.com/PINTO0309/Tensorflow-bin

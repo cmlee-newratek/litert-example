@@ -1,0 +1,27 @@
+# LiteRT Quantization Examples - PC Package
+# 
+# Purpose: Model creation and individual example execution
+# Files: create_models.py, 01-05-*.py
+#
+# Installation:
+#   pip install -r requirements.txt
+#
+# For Raspberry Pi 4 benchmark only:
+#   pip install -r requirements-rpi.txt
+
+# TensorFlow (for model training and conversion)
+tensorflow==2.13.1
+
+# Keras 3 is not compatible with TF Lite conversion in TF 2.x
+keras<3
+
+# TensorFlow Model Optimization Toolkit (required for QAT)
+tensorflow-model-optimization==0.7.5
+
+# NumPy
+numpy==1.24.3
+
+# Notes:
+# - GPU support: tensorflow (default, requires CUDA/cuDNN)
+# - CPU only: replace with tensorflow-cpu
+# - Python 3.8+ recommended
