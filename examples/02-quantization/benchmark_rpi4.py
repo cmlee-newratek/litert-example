@@ -191,18 +191,30 @@ class ModelBenchmark:
 
     def benchmark_inference(self, test_data, num_runs=100):
         """추론 성능 벤치마크"""
-        input_index = self.interpreter.get_input_details()[0]["index"]
-        output_index = self.interpreter.get_output_details()[0]["index"]
+        input_details = self.interpreter.get_input_details()[0]
+        input_index = input_details["index"]
 
         # 워밍업 (첫 1회 실행은 느릴 수 있음)
-        test_image = np.expand_dims(test_data[0], axis=0).astype(np.float32)
+        test_image = test_data[0]
+        if input_details["dtype"] == np.uint8:
+            input_scale, input_zero_point = input_details["quantization"]
+            test_image = test_image / input_scale + input_zero_point
+
+        test_image = np.expand_dims(test_image, axis=0).astype(input_details["dtype"])
         self.interpreter.set_tensor(input_index, test_image)
         self.interpreter.invoke()
 
         # 실제 벤치마크
         times = []
         for _ in range(num_runs):
-            test_image = np.expand_dims(test_data[0], axis=0).astype(np.float32)
+            test_image = test_data[0]
+            if input_details["dtype"] == np.uint8:
+                input_scale, input_zero_point = input_details["quantization"]
+                test_image = test_image / input_scale + input_zero_point
+
+            test_image = np.expand_dims(test_image, axis=0).astype(
+                input_details["dtype"]
+            )
             start = time.time()
             self.interpreter.set_tensor(input_index, test_image)
             self.interpreter.invoke()
