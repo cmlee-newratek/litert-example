@@ -1,0 +1,20 @@
+# LiteRT Examples - PC Requirements
+# 
+# Usage: pip install -r requirements.txt
+#
+# These dependencies are needed for:
+# - Model creation and training (create_models.py)
+# - Running all optimization examples (01-04 folders)
+# - TFLite model conversion
+
+# TensorFlow (for model training and conversion)
+tensorflow==2.13.1
+
+# Keras 3 is not compatible with TF Lite conversion in TF 2.x
+keras<3
+
+# TensorFlow Model Optimization Toolkit (required for all techniques)
+tensorflow-model-optimization==0.7.5
+
+# NumPy for data handling
+numpy==1.24.3

@@ -23,107 +23,205 @@ LiteRT를 활용한 다양한 ML/GenAI 모델 배포 예제 모음입니다. Goo
 - TensorFlow (모델 변환용)
 - LiteRT 런타임
 
-### 설치
-
-```bash
-# LiteRT 런타임 설치
-pip install litert
-
-# 필수 의존성
-pip install tensorflow
-```
-
 ## 📂 저장소 구조
 
 ```
 litert-example/
 ├── README.md
-├── examples/
-│   ├── 01-basic-inference/          # 기본 추론 예제
-│   ├── 02-quantization/              # 양자화 예제
-│   │   ├── 01-float16-quantization.py
-│   │   ├── 02-dynamic-range-quantization.py
-│   │   ├── 03-integer-quantization.py
-│   │   ├── 04-quantization-aware-training.py
-│   │   ├── 05-int16-int8-quantization.py
-│   │   ├── benchmark_rpi4.py        # Raspberry Pi 4 성능 비교
-│   │   └── README.md
-│   ├── 03-image-classification/      # 이미지 분류 예제
-│   ├── 04-image-segmentation/        # 이미지 세그멘테이션 예제
-│   ├── 05-object-detection/          # 객체 탐지 예제
-│   └── 06-nlp-inference/             # NLP 추론 예제
-├── models/                            # 사전 변환된 .tflite 모델
-├── datasets/                          # 양자화용 샘플 데이터
-├── tools/
-│   ├── convert-tensorflow.py         # TensorFlow → TFLite 변환 스크립트
-│   └── benchmark-utils.py            # 벤치마크 유틸리티
-├── requirements.txt                   # Python 의존성
-└── requirements-rpi4.txt              # Raspberry Pi 4용 의존성
+├── requirements.txt                         # 공통 의존성
+├── requirements-rpi.txt                     # Raspberry Pi 의존성
+│
+└── examples/
+    ├── 01-quantization/                    # 양자화 예제
+    │   ├── 01-float16-quantization.py
+    │   ├── 02-dynamic-range-quantization.py
+    │   ├── 03-integer-quantization.py
+    │   ├── 04-quantization-aware-training.py
+    │   ├── 05-int16-int8-quantization.py
+    │   ├── create_models.py
+    │   ├── benchmark_rpi4.py
+    │   └── README.md
+    │
+    ├── 02-pruning/                         # 프루닝 예제
+    │   ├── 01-basic-pruning.py
+    │   ├── 02-pruning-with-quantization.py
+    │   ├── create_models.py
+    │   ├── benchmark_rpi4.py
+    │   └── README.md
+    │
+    ├── 03-clustering/                      # 클러스터링 예제
+    │   ├── 01-basic-clustering.py
+    │   ├── 02-clustering-with-quantization.py
+    │   ├── create_models.py
+    │   ├── benchmark_rpi4.py
+    │   └── README.md
+    │
+    └── 04-collaborative-optimization/      # 협업 최적화 예제 ⭐
+        ├── 01-cqat.py                     # Clustering + QAT
+        ├── 02-pqat.py                     # Pruning + QAT
+        ├── 03-pcqat.py                    # Pruning + Clustering + QAT (최고 압축)
+        ├── create_models.py
+        ├── benchmark_rpi4.py
+        └── README.md
 ```
 
 ## 💡 예제 목록
 
-### 1. 이미지 분류 (Image Classification)
+### 1️⃣ 양자화 (Quantization) - `01-quantization/`
 
-```python
-import litert.runtime as rt
-import numpy as np
+**Float32 모델을 Int8로 변환하여 모델 크기와 추론 속도를 개선합니다.**
 
-# 모델 로드
-interpreter = rt.Interpreter(model_file='model.tflite')
-interpreter.allocate_tensors()
+5가지 양자화 기법을 다룹니다:
 
-# 입력 데이터
-input_image = np.random.rand(1, 224, 224, 3).astype(np.float32)
+- **01-float16-quantization.py**: Float16 양자화
+- **02-dynamic-range-quantization.py**: 동적 범위 양자화
+- **03-integer-quantization.py**: 정수 양자화
+- **04-quantization-aware-training.py**: 양자화 인식 훈련 (QAT)
+- **05-int16-int8-quantization.py**: Int16/Int8 양자화
 
-# 추론
-input_details = interpreter.get_input_details()
-output_details = interpreter.get_output_details()
+**기대 결과:**
 
-interpreter.set_tensor(input_details[0]['index'], input_image)
-interpreter.invoke()
+- 모델 크기: 75-80% 감소
+- 추론 속도: 4-6배 향상
+- 정확도 손실: <1%
 
-# 결과
-predictions = interpreter.get_tensor(output_details[0]['index'])
-print(predictions)
-```
+---
 
-### 2. 이미지 세그멘테이션 (Image Segmentation)
+### 2️⃣ 프루닝 (Pruning) - `02-pruning/`
 
-엣지 디바이스에서 실시간 이미지 세그멘테이션을 수행합니다.
+**가중치의 일부(~50%)를 0으로 설정하여 모델을 희소화합니다.**
 
-### 3. 객체 탐지 (Object Detection)
+- **01-basic-pruning.py**: 기본 프루닝 개념 학습
+- **02-pruning-with-quantization.py**: 프루닝 + 양자화 조합
+- **create_models.py**: 배치 모델 생성
+- **benchmark_rpi4.py**: Raspberry Pi 4 벤치마킹
 
-카메라 입력으로부터 실시간 객체 탐지를 구현합니다.
+**기대 결과:**
 
-### 4. NLP 추론
+- 스파시티(희소성): 50%
+- 모델 크기: 20-30% 감소 (gzip 압축 시 더 효율적)
+- 정확도 손실: <1%
 
-텍스트 분류, 감정 분석 등의 NLP 작업을 수행합니다.
+---
 
-### 5. GenAI 모델 배포
+### 3️⃣ 클러스터링 (Clustering) - `03-clustering/`
 
-LLM 및 생성형 AI 모델을 엣지 디바이스에 배포합니다.
+**가중치들을 N개의 그룹으로 묶어 고유 값을 줄입니다.**
 
-## 🔄 모델 변환 과정
+- **01-basic-clustering.py**: 기본 클러스터링 (16개 클러스터)
+- **02-clustering-with-quantization.py**: 클러스터링 + 양자화 조합
+- **create_models.py**: 다양한 클러스터 수(8, 16, 32)로 모델 생성
+- **benchmark_rpi4.py**: Raspberry Pi 4 벤치마킹
 
-LiteRT는 다양한 프레임워크의 모델을 `.tflite` 형식으로 변환합니다.
+**기대 결과:**
 
-### 1단계: 모델 획득
+- 고유 값: 1000→16 (16배 감소)
+- 모델 크기: 20-25% 감소
+- 정확도 손실: <1%
 
-- 사전 학습된 `.tflite` 모델 사용
-- TensorFlow 및 Keras 모델 변환
-- HuggingFace에서 LiteRT 커뮤니티 모델 다운로드
+---
 
-### 2단계: 모델 최적화
+### 4️⃣ 협업 최적화 (Collaborative Optimization) - ⭐ `04-collaborative-optimization/`
+
+**여러 최적화 기법을 순차적으로 조합하여 최대 압축을 달성합니다.**
+
+3가지 협업 최적화 경로:
+
+#### 🔸 CQAT (Clustering + Quantization Aware Training)
+
+- **01-cqat.py**: 클러스터링 → QAT
+- 압축율: **30-35%**
+- 정확도: 높음 ✅
+- 추천: 균형잡힌 선택
+
+#### 🔹 PQAT (Pruning + Quantization Aware Training)
+
+- **02-pqat.py**: 프루닝 → QAT
+- 압축율: **35-40%**
+- 정확도: 중상 ✅
+- 추천: 희소성 활용 필요시
+
+#### 🔺 PCQAT (Pruning + Clustering + QAT) ⭐⭐⭐
+
+- **03-pcqat.py**: 프루닝 → 클러스터링 → QAT
+- 압축율: **45-50%** 🏆
+- 정확도: 중 ✅
+- 추천: **최대 압축 필요시** (권장)
+
+**추가 파일:**
+
+- **create_models.py**: 3가지 협업 최적화 모델 배치 생성
+- **benchmark_rpi4.py**: Raspberry Pi 4 성능 벤치마킹
+
+---
+
+## 📊 최적화 기법 비교
+
+| 기법       | 압축율     | 추론속도   | 구현 난이도 | 추천대상      |
+| ---------- | ---------- | ---------- | ----------- | ------------- |
+| 양자화     | 75-80%     | ⬆️⬆️⬆️     | 낮음        | 시작점        |
+| 프루닝     | 20-30%     | ➡️         | 중간        | 희소성 활용   |
+| 클러스터링 | 20-25%     | ➡️         | 중간        | 고유값 감소   |
+| CQAT       | 30-35%     | ⬆️⬆️       | 중간        | 균형          |
+| PQAT       | 35-40%     | ⬆️⬆️       | 중간        | 희소성 보존   |
+| **PCQAT**  | **45-50%** | **⬆️⬆️⬆️** | **높음**    | **최대 압축** |
+
+---
+
+## � 빠른 시작
+
+### 1. 저장소 클론
 
 ```bash
-# 양자화를 통한 모델 최적화
-python tools/quantize-model.py --input model.tflite --output model_quant.tflite
+git clone https://github.com/newracom/litert-example.git
+cd litert-example
 ```
 
-### 3단계: 배포
+### 2. 가상환경 설정
 
-최적화된 모델을 선택한 플랫폼에 배포합니다.
+```bash
+python -m venv .venv
+source .venv/bin/activate  # Linux/Mac
+# 또는
+.venv\Scripts\Activate  # Windows
+```
+
+### 3. 의존성 설치
+
+#### PC에서 (TensorFlow 필요)
+
+```bash
+pip install -r requirements.txt
+```
+
+#### Raspberry Pi에서 (가벼운 버전)
+
+```bash
+pip install -r requirements-rpi.txt
+```
+
+### 4. 예제 실행
+
+#### PC에서 모델 생성 (권장)
+
+```bash
+# 양자화 모델 생성
+cd examples/01-quantization
+python create_models.py
+
+# 또는 협업 최적화 (최고 압축)
+cd ../04-collaborative-optimization
+python create_models.py
+```
+
+#### Raspberry Pi 4에서 벤치마킹
+
+```bash
+# 벤치마크 실행
+python benchmark_rpi4.py
+```
+
+---
 
 ## 📱 타겟 플랫폼
 
@@ -131,127 +229,95 @@ python tools/quantize-model.py --input model.tflite --output model_quant.tflite
 
 ### 지원되는 하드웨어
 
-- Raspberry Pi (3B+, 4, 5)
-- NVIDIA Jetson (Orin, Xavier, Nano)
-- MediaTek 칩셋
-- Qualcomm Snapdragon용 임베디드 Linux
+- Raspberry Pi (4)
 
-## 🎯 성능 특성
+## � 각 폴더별 실행 방법
 
-- **저지연성**: 밀리초 단위 추론
-- **높은 개인정보보호**: 온디바이스 처리
-- **효율성**: 낮은 메모리 및 전력 소비
-- **확장성**: 경량 모델부터 대규모 GenAI까지 지원
-
-## 📚 학습 자료
-
-### 공식 문서
-
-- [LiteRT 공식 문서](https://ai.google.dev/edge/litert)
-- [LiteRT Overview](https://ai.google.dev/edge/litert/overview)
-- [마이그레이션 가이드](https://ai.google.dev/edge/litert/migration)
-
-### 튜토리얼
-
-- [TensorFlow 모델 변환](https://ai.google.dev/edge/litert/conversion/tensorflow)
-- [임베디드 Linux 배포 가이드](https://ai.google.dev/edge/litert/inference)
-- [GPU 가속화](https://ai.google.dev/edge/litert/next/gpu)
-
-### 모델 자료
-
-- [HuggingFace LiteRT 커뮤니티](https://huggingface.co/litert-community)
-
-## 🤝 커뮤니티
-
-- [GitHub LiteRT 리포지토리](https://github.com/google-ai-edge/LiteRT)
-- [HuggingFace LiteRT 커뮤니티](https://huggingface.co/litert-community)
-- [Issue 및 토론](https://github.com/google-ai-edge/LiteRT/discussions)
-
-## 💻 개발 환경 설정
-
-### 가상 환경 생성
+### 01-quantization 실행
 
 ```bash
-python -m venv venv
-source venv/bin/activate  # Linux/Mac
-# 또는
-venv\Scripts\activate  # Windows
-```
-
-### 의존성 설치
-
-```bash
+cd examples/01-quantization
 pip install -r requirements.txt
+
+# 개별 예제 실행
+python 01-float16-quantization.py
+python 02-dynamic-range-quantization.py
+python 03-integer-quantization.py
+
+# 모든 모델 한 번에 생성
+python create_models.py
+
+# Raspberry Pi에서 벤치마킹
+pip install -r requirements-rpi.txt
+python benchmark_rpi4.py
 ```
 
-### 예제 실행
+### 02-pruning 실행
 
 ```bash
-cd examples/01-image-classification
-python main.py
+cd examples/02-pruning
+pip install -r requirements.txt
+
+# 개별 예제 실행
+python 01-basic-pruning.py
+python 02-pruning-with-quantization.py
+
+# 모든 모델 한 번에 생성
+python create_models.py
+
+# Raspberry Pi에서 벤치마킹
+pip install -r requirements-rpi.txt
+python benchmark_rpi4.py
 ```
 
-## 🛠️ 유용한 도구
-
-### 모델 변환 스크립트
+### 03-clustering 실행
 
 ```bash
-# TensorFlow 모델 변환
-python tools/convert-tensorflow.py --input model.pb --output model.tflite
+cd examples/03-clustering
+pip install -r requirements.txt
 
-# 모델 양자화
-python tools/quantize-model.py --input model.tflite --output model_quant.tflite
+# 개별 예제 실행
+python 01-basic-clustering.py
+python 02-clustering-with-quantization.py
+
+# 모든 모델 한 번에 생성
+python create_models.py
+
+# Raspberry Pi에서 벤치마킹
+pip install -r requirements-rpi.txt
+python benchmark_rpi4.py
 ```
 
-## ⚙️ 하드웨어 가속화 (임베디드 Linux)
+### 04-collaborative-optimization 실행 (권장)
 
-LiteRT는 다음의 임베디드 Linux 가속기를 지원합니다:
+```bash
+cd examples/04-collaborative-optimization
+pip install -r requirements.txt
 
-- **GPU**: Vulkan, OpenGL (Mali GPU, Adreno GPU)
-- **NPU**: MediaTek Neuron VPU, Qualcomm Hexagon
-- **CUDA**: NVIDIA Jetson GPU (CUDA 지원)
-- **CPU**: ARM NEON, x86 SSE/AVX
+# 3가지 협업 최적화 기법 학습
+python 01-cqat.py      # Clustering + QAT
+python 02-pqat.py      # Pruning + QAT
+python 03-pcqat.py     # Pruning + Clustering + QAT (최고 압축)
 
-## 📊 모델 최적화 팁
+# 모든 모델 한 번에 생성
+python create_models.py
 
-1. **양자화**: 모델 크기 및 지연시간 감소
-2. **프루닝**: 불필요한 파라미터 제거
-3. **Knowledge Distillation**: 작은 모델로 지식 전이
-4. **적절한 입력 크기 선택**: 성능과 정확도 균형
-
-## 🐛 문제 해결
-
-### 모델 로드 실패
-
-- `.tflite` 파일 경로 확인
-- 모델 버전 호환성 확인
-
-### 추론 성능 저하
-
-- 하드웨어 가속화 활성화 확인
-- 모델 양자화 고려
-
-### 메모리 부족
-
-- 배치 크기 감소
-- 모델 양자화 또는 프루닝
-
-## 📄 라이선스
-
-이 저장소는 Apache 2.0 라이선스 하에 공개됩니다.
-
-## 🙋 기여
-
-버그 리포트, 기능 제안, 풀 리퀘스트를 환영합니다!
-
-## 📞 연락처
-
-- Issue 제출: GitHub Issues
-- 토론: GitHub Discussions
-- 문의: [Google AI Edge Support](https://ai.google.dev/edge)
+# Raspberry Pi에서 벤치마킹
+pip install -r requirements-rpi.txt
+python benchmark_rpi4.py
+```
 
 ---
 
-**마지막 업데이트**: 2026년 2월 27일
+## 💡 팁
+
+### 최적화 선택 기준
+
+| 상황                        | 추천 기법              | 이유                 |
+| --------------------------- | ---------------------- | -------------------- |
+| 엣지 디바이스 (매우 제한적) | **PCQAT**              | 최대 압축 50%        |
+| 모바일 앱                   | **CQAT** 또는 **PQAT** | 균형잡힌 압축 35-40% |
+| 정확도 우선                 | **양자화**             | 정확도 손실 최소     |
+| 시간이 부족할 때            | **01-quantization**    | 가장 빨리 배우기     |
 
 더 많은 정보와 최신 예제는 [공식 LiteRT 문서](https://ai.google.dev/edge/litert)를 참고하세요.

@@ -1,0 +1,13 @@
+# LiteRT Examples - Raspberry Pi 4 Requirements
+#
+# Usage: pip install -r requirements-rpi.txt
+#
+# Lightweight dependencies for Raspberry Pi 4 inference only
+# Note: Install requirements.txt first for full development environment
+
+# TensorFlow Lite Runtime (lightweight inference)
+# Alternative: tensorflow==2.13.1 (if you want full TensorFlow on Pi)
+tflite-runtime
+
+# NumPy for data handling
+numpy==1.24.3
