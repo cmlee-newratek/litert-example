@@ -4,7 +4,7 @@
 협업 최적화된 모델들의 성능을 라즈베리파이 4에서 측정합니다.
 
 측정:
-- 3가지 협업 최적화 모델 (CQAT, PQAT, PCQAT)
+- 4가지 협업 최적화 모델 (CQAT, PQAT, PC, PCQAT)
 - 정확도, 추론 속도, FPS, 모델 크기
 """
 
@@ -238,6 +238,7 @@ def main():
         "baseline": models_dir / "mnist_model_baseline.tflite",
         "cqat": models_dir / "mnist_model_cqat.tflite",
         "pqat": models_dir / "mnist_model_pqat.tflite",
+        "pc_int8": models_dir / "mnist_model_pc_int8.tflite",
         "pcqat": models_dir / "mnist_model_pcqat.tflite",
     }
 
@@ -317,6 +318,7 @@ def main():
     print("\n🎯 협업 최적화 효과:")
     print("    • CQAT (클러스터링+QAT): 적당한 압축 + 정확도 유지")
     print("    • PQAT (프루닝+QAT): 희소성 보존 + 추론 이득")
+    print("    • PC (프루닝+클러스터링): 두 기법 조합 + 정확도 유지")
     print("    • PCQAT (프루닝+클러스터링+QAT): 최대 압축 달성")
 
     print("\n💾 상세 결과: ./mnist_collaborative_models/benchmark_results.json")

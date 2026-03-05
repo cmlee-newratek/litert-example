@@ -5,7 +5,7 @@ Raspberry Pi 4 성능 벤치마크 - 프루닝 모델
 Raspberry Pi 4에서 실행하세요.
 
 모델 생성:
-- PC에서 01-basic-pruning.py 또는 02-pruning-with-quantization.py 실행
+- PC에서 create_models.py 실행
 """
 
 try:
@@ -302,9 +302,8 @@ def main():
 
     if not models_dir.exists():
         print(f"    ❌ 오류: {models_dir} 디렉토리를 찾을 수 없습니다.")
-        print("    PC에서 프루닝 예제를 먼저 실행하세요:")
-        print("      - 01-basic-pruning.py")
-        print("      - 02-pruning-with-quantization.py")
+        print("    PC에서 먼저 모델을 생성하세요:")
+        print("      python create_models.py")
         return
 
     model_files = {
@@ -329,14 +328,12 @@ def main():
 
     if not models_to_test:
         print("\n    ❌ 사용 가능한 모델이 없습니다.")
-        print("    PC에서 프루닝 예제를 실행하여 모델들을 생성하세요.")
+        print("    PC에서 create_models.py를 실행하여 모델들을 생성하세요.")
         return
 
     if missing_models:
         print(f"\n    ⚠️  일부 모델 누락: {', '.join(missing_models)}")
-        print(
-            "    모든 모델을 생성하려면 02-pruning-with-quantization.py를 실행하세요."
-        )
+        print("    모든 모델을 생성하려면 create_models.py를 실행하세요.")
 
     # 4. 벤치마크 수행
     print("\n[4] 벤치마크 수행 중...")

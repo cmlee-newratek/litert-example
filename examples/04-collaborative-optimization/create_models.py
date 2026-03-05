@@ -1,10 +1,11 @@
 """
 협업 최적화 모델 배치 생성 (Collaborative Optimization Batch Generation)
 
-3가지 협업 최적화 경로의 모델을 모두 생성합니다:
+4가지 협업 최적화 경로의 모델을 모두 생성합니다:
 1. CQAT: Clustering → Quantization-Aware Training
 2. PQAT: Pruning → Quantization-Aware Training
-3. PCQAT: Pruning → Clustering → Quantization-Aware Training
+3. PC: Pruning → Clustering (QAT 없음)
+4. PCQAT: Pruning → Clustering → Quantization-Aware Training
 """
 
 import tensorflow as tf
@@ -80,6 +81,12 @@ def get_representative_data(train_images):
             yield [train_images[i : i + 1].astype(np.float32)]
 
     return gen
+
+
+def convert_to_tflite_float32(keras_model):
+    """Float32로 TFLite 변환 (양자화 없음)"""
+    converter = tf.lite.TFLiteConverter.from_keras_model(keras_model)
+    return converter.convert()
 
 
 def convert_to_tflite_int8(keras_model, train_images):
@@ -244,17 +251,14 @@ def main():
         f"    ✅ PQAT: {pqat_path.name} ({pqat_size / 1024:.2f} KB, {pqat_size / baseline_size * 100:.1f}%)"
     )
 
-    # ===== PCQAT 모델 생성 (완전 최적화) =====
-    print("\n[7] PCQAT 모델 생성 중 (Pruning → Clustering → QAT)...")
+    # ===== PC 모델 생성 (Pruning + Clustering, QAT 없음) =====
+    print("\n[7] PC 모델 생성 중 (Pruning → Clustering)...")
 
-    # 7.1 프루닝 + 클러스터링
-    model_for_pcqat = create_model()
-    train_model(model_for_pcqat, train_images, train_labels, val_images, val_labels)
+    # 7.1 프루닝
+    model_for_pc = create_model()
+    train_model(model_for_pc, train_images, train_labels, val_images, val_labels)
 
-    # 프루닝
-    pruned_pc = tfmot.sparsity.keras.prune_low_magnitude(
-        model_for_pcqat, **pruning_params
-    )
+    pruned_pc = tfmot.sparsity.keras.prune_low_magnitude(model_for_pc, **pruning_params)
     pruned_pc.compile(
         optimizer="adam",
         loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
@@ -270,19 +274,19 @@ def main():
         verbose=0,
     )
 
-    # 프루닝 제거 후 클러스터링
+    # 7.2 클러스터링
     model_after_prune = tfmot.sparsity.keras.strip_pruning(pruned_pc)
 
-    clustered_pc = tfmot.clustering.keras.cluster_weights(
+    clustered_pc_model = tfmot.clustering.keras.cluster_weights(
         model_after_prune, **clustering_params
     )
-    clustered_pc.compile(
+    clustered_pc_model.compile(
         optimizer="adam",
         loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
         metrics=["accuracy"],
     )
 
-    clustered_pc.fit(
+    clustered_pc_model.fit(
         train_images,
         train_labels,
         batch_size=128,
@@ -291,8 +295,76 @@ def main():
         verbose=0,
     )
 
-    # 7.2 클러스터링 래퍼 제거 + QAT
-    model_for_pcqat_qat = tfmot.clustering.keras.strip_clustering(clustered_pc)
+    # 7.3 클러스터링 래퍼 제거
+    model_for_pc_export = tfmot.clustering.keras.strip_clustering(clustered_pc_model)
+
+    # 7.4 PC Float32 TFLite 변환
+    pc_f32_tflite = convert_to_tflite_float32(model_for_pc_export)
+    pc_f32_path = models_dir / "mnist_model_pc_f32.tflite"
+    pc_f32_path.write_bytes(pc_f32_tflite)
+    pc_f32_size = os.path.getsize(pc_f32_path)
+    print(
+        f"    ✅ PC Float32: {pc_f32_path.name} ({pc_f32_size / 1024:.2f} KB, {pc_f32_size / baseline_size * 100:.1f}%)"
+    )
+
+    # 7.5 PC Int8 TFLite 변환
+    pc_int8_tflite = convert_to_tflite_int8(model_for_pc_export, train_images)
+    pc_int8_path = models_dir / "mnist_model_pc_int8.tflite"
+    pc_int8_path.write_bytes(pc_int8_tflite)
+    pc_int8_size = os.path.getsize(pc_int8_path)
+    print(
+        f"    ✅ PC Int8: {pc_int8_path.name} ({pc_int8_size / 1024:.2f} KB, {pc_int8_size / baseline_size * 100:.1f}%)"
+    )
+
+    # ===== PCQAT 모델 생성 (완전 최적화) =====
+    print("\n[8] PCQAT 모델 생성 중 (Pruning → Clustering → QAT)...")
+
+    # 8.1 프루닝 + 클러스터링
+    model_for_pcqat = create_model()
+    train_model(model_for_pcqat, train_images, train_labels, val_images, val_labels)
+
+    # 프루닝
+    pruned_pcqat = tfmot.sparsity.keras.prune_low_magnitude(
+        model_for_pcqat, **pruning_params
+    )
+    pruned_pcqat.compile(
+        optimizer="adam",
+        loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+        metrics=["accuracy"],
+    )
+
+    pruned_pcqat.fit(
+        train_images,
+        train_labels,
+        batch_size=128,
+        epochs=2,
+        validation_data=(val_images, val_labels),
+        verbose=0,
+    )
+
+    # 프루닝 제거 후 클러스터링
+    model_after_prune_pcqat = tfmot.sparsity.keras.strip_pruning(pruned_pcqat)
+
+    clustered_pcqat = tfmot.clustering.keras.cluster_weights(
+        model_after_prune_pcqat, **clustering_params
+    )
+    clustered_pcqat.compile(
+        optimizer="adam",
+        loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+        metrics=["accuracy"],
+    )
+
+    clustered_pcqat.fit(
+        train_images,
+        train_labels,
+        batch_size=128,
+        epochs=2,
+        validation_data=(val_images, val_labels),
+        verbose=0,
+    )
+
+    # 8.2 클러스터링 래퍼 제거 + QAT
+    model_for_pcqat_qat = tfmot.clustering.keras.strip_clustering(clustered_pcqat)
     pcqat_model = tfmot.quantization.keras.quantize_model(model_for_pcqat_qat)
     pcqat_model.compile(
         optimizer="adam",
@@ -309,7 +381,7 @@ def main():
         verbose=0,
     )
 
-    # 7.3 PCQAT TFLite 변환
+    # 8.3 PCQAT TFLite 변환
     pcqat_tflite = convert_to_tflite_int8(pcqat_model, train_images)
     pcqat_path = models_dir / "mnist_model_pcqat.tflite"
     pcqat_path.write_bytes(pcqat_tflite)
@@ -318,8 +390,8 @@ def main():
         f"    ✅ PCQAT: {pcqat_path.name} ({pcqat_size / 1024:.2f} KB, {pcqat_size / baseline_size * 100:.1f}%)"
     )
 
-    # 8. 테스트 데이터 저장
-    print("\n[8] 테스트 데이터 저장 중...")
+    # 9. 테스트 데이터 저장
+    print("\n[9] 테스트 데이터 저장 중...")
     np.save(models_dir / "mnist_test_images.npy", (test_images * 255).astype(np.uint8))
     np.save(models_dir / "mnist_test_labels.npy", test_labels)
     print("    ✅ 테스트 데이터 저장 완료")
@@ -338,13 +410,20 @@ def main():
         f"   • {pqat_path.name:40} {pqat_size / 1024:>8.2f} KB ({pqat_size / baseline_size * 100:>6.1f}%)"
     )
     print(
+        f"   • {pc_f32_path.name:40} {pc_f32_size / 1024:>8.2f} KB ({pc_f32_size / baseline_size * 100:>6.1f}%)"
+    )
+    print(
+        f"   • {pc_int8_path.name:40} {pc_int8_size / 1024:>8.2f} KB ({pc_int8_size / baseline_size * 100:>6.1f}%)"
+    )
+    print(
         f"   • {pcqat_path.name:40} {pcqat_size / 1024:>8.2f} KB ({pcqat_size / baseline_size * 100:>6.1f}%)"
     )
 
     print("\n🎯 협업 최적화 경로:")
     print("   1. CQAT:  클러스터링 → 양자화 인식 훈련")
     print("   2. PQAT:  프루닝 → 양자화 인식 훈련")
-    print("   3. PCQAT: 프루닝 → 클러스터링 → 양자화 인식 훈련 (최고 압축)")
+    print("   3. PC:    프루닝 → 클러스터링 (QAT 없음)")
+    print("   4. PCQAT: 프루닝 → 클러스터링 → 양자화 인식 훈련 (최고 압축)")
 
     print("\n💾 데이터 파일:")
     print("   • mnist_test_images.npy")

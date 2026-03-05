@@ -181,13 +181,24 @@ def main():
     baseline_tflite_size = os.path.getsize(baseline_tflite_path)
     print(f"     ✅ 원본 TFLite 모델: {baseline_tflite_size / 1024:.2f} KB")
 
-    # 프루닝 모델
+    # 프루닝 모델 (일반 Float32)
     converter = tf.lite.TFLiteConverter.from_keras_model(model_for_export)
     pruned_tflite_model = converter.convert()
     pruned_tflite_path = models_dir / "mnist_model_pruned.tflite"
     pruned_tflite_path.write_bytes(pruned_tflite_model)
     pruned_tflite_size = os.path.getsize(pruned_tflite_path)
     print(f"     ✅ 프루닝 TFLite 모델: {pruned_tflite_size / 1024:.2f} KB")
+
+    # 프루닝 모델 (Sparse 인코딩)
+    converter = tf.lite.TFLiteConverter.from_keras_model(model_for_export)
+    converter.optimizations = [tf.lite.Optimize.EXPERIMENTAL_SPARSITY]
+    pruned_sparse_tflite_model = converter.convert()
+    pruned_sparse_tflite_path = models_dir / "mnist_model_pruned_sparse.tflite"
+    pruned_sparse_tflite_path.write_bytes(pruned_sparse_tflite_model)
+    pruned_sparse_tflite_size = os.path.getsize(pruned_sparse_tflite_path)
+    print(
+        f"     ✅ 프루닝 Sparse TFLite 모델: {pruned_sparse_tflite_size / 1024:.2f} KB"
+    )
 
     # 15. gzip 압축 효과 확인
     print("\n[15] gzip 압축 효과 확인 중...")
@@ -206,11 +217,23 @@ def main():
         f.write(pruned_compressed)
     pruned_compressed_size = os.path.getsize(pruned_zip_path)
 
+    # 프루닝 Sparse 모델 압축
+    pruned_sparse_compressed = gzip.compress(pruned_sparse_tflite_model)
+    _, pruned_sparse_zip_path = tempfile.mkstemp(".gz")
+    with open(pruned_sparse_zip_path, "wb") as f:
+        f.write(pruned_sparse_compressed)
+    pruned_sparse_compressed_size = os.path.getsize(pruned_sparse_zip_path)
+
     compression_benefit = (1 - pruned_compressed_size / baseline_compressed_size) * 100
+    sparse_compression_benefit = (
+        1 - pruned_sparse_compressed_size / baseline_compressed_size
+    ) * 100
 
     print(f"     원본 모델 (gzip):    {baseline_compressed_size / 1024:.2f} KB")
     print(f"     프루닝 모델 (gzip):  {pruned_compressed_size / 1024:.2f} KB")
+    print(f"     Sparse 모델 (gzip):   {pruned_sparse_compressed_size / 1024:.2f} KB")
     print(f"     압축 개선율:         {compression_benefit:.1f}%")
+    print(f"     Sparse 개선율:       {sparse_compression_benefit:.1f}%")
 
     # 16. TFLite 모델 정확도 평가
     print("\n[16] TFLite 모델 정확도 평가 중...")
@@ -290,9 +313,13 @@ def main():
     )
     print(f"\n   • 원본 크기:             {baseline_tflite_size / 1024:.2f} KB")
     print(f"   • 프루닝 후:             {pruned_tflite_size / 1024:.2f} KB")
+    print(f"   • 프루닝 Sparse:         {pruned_sparse_tflite_size / 1024:.2f} KB")
     print(f"   • 원본 (gzip):           {baseline_compressed_size / 1024:.2f} KB")
     print(
         f"   • 프루닝 후 (gzip):      {pruned_compressed_size / 1024:.2f} KB ({compression_benefit:.1f}% 감소)"
+    )
+    print(
+        f"   • Sparse (gzip):         {pruned_sparse_compressed_size / 1024:.2f} KB ({sparse_compression_benefit:.1f}% 감소)"
     )
     print(f"\n   • 모델 희소성:           {sparsity:.1f}%")
 
@@ -307,6 +334,7 @@ def main():
     print(f"   • {pruned_h5_path}")
     print(f"   • {baseline_tflite_path}")
     print(f"   • {pruned_tflite_path}")
+    print(f"   • {pruned_sparse_tflite_path}")
     print("=" * 70)
 
 

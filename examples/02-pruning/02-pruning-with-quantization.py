@@ -20,7 +20,6 @@ import tensorflow_model_optimization as tfmot
 import numpy as np
 import pathlib
 import os
-import tempfile
 import gzip
 
 
@@ -238,12 +237,7 @@ def main():
 
     def get_gzip_size(model_bytes):
         compressed = gzip.compress(model_bytes)
-        _, temp_path = tempfile.mkstemp(".gz")
-        with open(temp_path, "wb") as f:
-            f.write(compressed)
-        size = os.path.getsize(temp_path)
-        os.remove(temp_path)
-        return size
+        return len(compressed)
 
     baseline_gz_size = get_gzip_size(baseline_tflite_model)
     pruned_gz_size = get_gzip_size(pruned_tflite_model)

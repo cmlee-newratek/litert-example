@@ -20,7 +20,7 @@ MNIST 데이터셋을 기반으로 TensorFlow 모델에 프루닝(Pruning)을 �
 ## 📂 예제 구조
 
 ```
-01-pruning/
+02-pruning/
 ├── [PC에서 실행] ──────────────────────────────
 │   ├── 01-basic-pruning.py               # 기본 프루닝 예제
 │   ├── 02-pruning-with-quantization.py  # 프루닝 + 양자화 결합 예제
@@ -39,7 +39,6 @@ MNIST 데이터셋을 기반으로 TensorFlow 모델에 프루닝(Pruning)을 �
 │   ├── mnist_test_labels.npy
 │   └── benchmark_results_rpi4.json    # (Pi) 벤치마크 결과
 │
-├── requirements.txt                   # Python 패키지 의존성
 └── README.md                          # 이 파일
 ```
 
@@ -136,13 +135,7 @@ python 02-pruning-with-quantization.py
 
 생성된 `mnist_pruned_models/` 디렉토리를 Raspberry Pi 4로 복사합니다.
 
-**방법 1: scp를 사용하여 복사**
-
-```bash
-scp -r mnist_pruned_models pi@raspberrypi.local:/home/pi/
-```
-
-**방법 2: 전체 저장소 복제**
+**방법: 전체 저장소 복제**
 
 ```bash
 # Pi에서 전체 저장소 복제
@@ -176,8 +169,8 @@ python benchmark_rpi4.py
 
 | 스크립트                          | 실행 환경        | 목적      | 설명                                                               |
 | --------------------------------- | ---------------- | --------- | ------------------------------------------------------------------ |
-| `01-basic-pruning.py`             | PC               | 학습      | 기본 프루닍 개념 학습<br>모델 생성부터 평가까지 완전한 과정        |
-| `02-pruning-with-quantization.py` | PC               | 학습      | 프루닍+양자화 결합 학습<br>최대 압축 목표                          |
+| `01-basic-pruning.py`             | PC               | 학습      | 기본 프루닝 개념 학습<br>모델 생성부터 평가까지 완전한 과정        |
+| `02-pruning-with-quantization.py` | PC               | 학습      | 프루닝+양자화 결합 학습<br>최대 압축 목표                          |
 | `create_models.py`                | **PC**           | 모델 생성 | 모든 모델을 한 번에 생성<br>Raspberry Pi용 모델 파일 생성          |
 | `benchmark_rpi4.py`               | **Raspberry Pi** | 성능 측정 | 실제 Pi 환경에서 모델 성능 측정<br>ARM CPU의 실제 성능 데이터 수집 |
 
@@ -197,100 +190,9 @@ Raspberry Pi 4 (benchmark_rpi4.py):
 
 ## 📊 기대 성능 (Raspberry Pi 4)
 
-### 01-basic-pruning.py
-
-기본적인 프루닝 예제입니다.
-
-**주요 단계**:
-
-1. **모델 훈련**: MNIST 분류 모델 훈련
-2. **프루닝 스케줄 설정**: 초기 희소성 0% → 최종 50%
-3. **프루닝 적용**: `prune_low_magnitude` API 사용
-4. **재훈련**: 프루닝된 모델 미세조정
-5. **모델 저장**: Keras 및 TFLite 형식으로 저장
-6. **압축 테스트**: gzip 압축 효과 측정
-7. **분석**: 희소성 및 레이어별 통계
-
-**프루닝 파라미터**:
-
-```python
-pruning_params = {
-    "pruning_schedule": tfmot.sparsity.keras.PolynomialDecay(
-        initial_sparsity=0.0,  # 초기 희소성 (0%)
-        final_sparsity=0.5,    # 최종 희소성 (50%)
-        begin_step=0,
-        end_step=end_step,
-    )
-}
-```
-
-**출력 예시**:
-
-```
-📊 주요 결과:
-   • 원본 정확도:           96.8%
-   • 프루닝 후 정확도:      96.5%
-   • 정확도 변화:           -0.3%p
-
-   • 원본 크기:             83.69 KB
-   • 프루닝 후:             83.69 KB
-   • 원본 (gzip):           25.12 KB
-   • 프루닝 후 (gzip):      18.45 KB (26.6% 감소)
-
-   • 모델 희소성:           50.3%
-```
-
-### 02-pruning-with-quantization.py
-
-프루닝과 양자화를 결합하여 최대 압축 효과를 달성하는 예제입니다.
-
-**주요 단계**:
-
-1. **모델 훈련**: MNIST 분류 모델 훈련
-2. **프루닝 적용**: 50% 희소성
-3. **모델 변환**: 다양한 변형 생성
-   - Baseline Float32
-   - Pruned Float32
-   - Baseline + 양자화
-   - Pruned + 양자화 (Dynamic Range)
-   - Pruned + Int8 양자화
-4. **비교 분석**: 정확도, 크기, 압축률 비교
-
-**출력 예시**:
-
-```
-📊 정확도 비교:
-   • 원본 Float32:          96.8%
-   • 프루닝:                96.5%
-   • 원본+양자화:           96.7%
-   • 프루닝+양자화:         96.4%
-   • 프루닝+Int8:           96.2%
-
-📦 모델 크기 비교 (압축 전):
-   • 원본:                  83.69 KB (100.0%)
-   • 프루닝:                83.69 KB (100.0%)
-   • 원본+양자화:           21.09 KB (25.2%)
-   • 프루닍+양자화:         21.09 KB (25.2%)
-   • 프루닍+Int8:           22.45 KB (26.8%)
-
-📦 모델 크기 비교 (gzip 압축 후):
-   • 원본:                  25.12 KB (100.0%)
-   • 프루닍:                18.45 KB (73.4%)
-   • 원본+양자화:           10.23 KB (40.7%)
-   • 프루닍+양자화:         8.12 KB (32.3%)
-   • 프루닍+Int8:           7.89 KB (31.4%)
-```
-
-**주요 결과**:
-
-- 프루닍만으로는 크기가 줄지 않지만 gzip 압축 시 ~27% 감소
-- 양자화는 4배 압축 효과
-- 프루닍+양자화는 두 기법의 장점 결합
-- 프루닍+Int8은 가장 작지만 약간의 정확도 손실
-
 ### create_models.py
 
-모든 프루닍 모델을 한 번에 생성하는 스크립트입니다.
+모든 프루닝 모델을 한 번에 생성하는 스크립트입니다.
 
 **생성되는 모델**:
 
@@ -328,7 +230,7 @@ Raspberry Pi 4에서 모델 성능을 측정하는 벤치마크 스크립트입�
 
 ```bash
 # Raspberry Pi 4에서
-cd examples/01-pruning
+cd examples/02-pruning
 python benchmark_rpi4.py
 ```
 
@@ -476,9 +378,9 @@ tfmot.sparsity.keras.ConstantSparsity(
 
 프루닝을 익힌 후:
 
-1. **양자화 학습**: `examples/02-quantization/` 참고
-2. **PQAT**: 프루닍 + 양자화 결합 (02-pruning-with-quantization.py)
-3. **실제 모델 적용**: 자신의 모델에 프루닍 적용
+1. **양자화 학습**: `examples/01-quantization/` 참고
+2. **PQAT**: 프루닝 + 양자화 결합 (02-pruning-with-quantization.py)
+3. **실제 모델 적용**: 자신의 모델에 프루닝 적용
 4. **하드웨어 최적화**: Raspberry Pi 4, EdgeTPU, ARM NEON 등
 
 ## 📚 참고 자료
@@ -487,13 +389,3 @@ tfmot.sparsity.keras.ConstantSparsity(
 - [Pruning with Keras](https://www.tensorflow.org/model_optimization/guide/pruning/pruning_with_keras)
 - [Pruning Comprehensive Guide](https://www.tensorflow.org/model_optimization/guide/pruning/comprehensive_guide)
 - [Research Paper: To prune, or not to prune](https://arxiv.org/pdf/1710.01878.pdf)
-
-## 🤝 피드백
-
-이 예제에 대한 피드백과 개선 제안을 환영합니다!
-
----
-
-## 📄 라이선스
-
-Apache 2.0

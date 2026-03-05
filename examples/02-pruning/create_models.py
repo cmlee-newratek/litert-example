@@ -95,6 +95,13 @@ def apply_pruning(model, train_images, train_labels, val_images, val_labels):
     )
 
     model_for_export = tfmot.sparsity.keras.strip_pruning(model_for_pruning)
+
+    # 프루닝 래퍼 제거 후 재컴파일
+    model_for_export.compile(
+        optimizer="adam",
+        loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+        metrics=["accuracy"],
+    )
     print("  ✅ 프루닝 완료")
 
     return model_for_export
