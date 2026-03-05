@@ -108,6 +108,7 @@ def main():
         batch_size=128,
         epochs=2,
         validation_data=(val_images, val_labels),
+        callbacks=[tfmot.sparsity.keras.UpdatePruningStep()],
         verbose=0,
     )
     pruned_loss, pruned_accuracy = pruned_model.evaluate(
@@ -124,7 +125,7 @@ def main():
     # 클러스터링 적용 (스파시티 보존)
     clustering_params = {
         "number_of_clusters": 16,
-        "cluster_centroids_init": tfmot.clustering.keras.CentroidsInitializer.LINEAR,
+        "cluster_centroids_init": tfmot.clustering.keras.CentroidInitialization.LINEAR,
     }
 
     clustered_model = tfmot.clustering.keras.cluster_weights(
@@ -198,9 +199,8 @@ def main():
 
     # PCQAT 모델 (Int8 - 최종 배포 모델)
     converter = tf.lite.TFLiteConverter.from_keras_model(quant_aware_model)
+    converter.optimizations = [tf.lite.Optimize.DEFAULT]
     converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
-    converter.inference_input_type = tf.int8
-    converter.inference_output_type = tf.int8
 
     def representative_dataset():
         for i in range(100):

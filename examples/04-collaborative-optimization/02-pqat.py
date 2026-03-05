@@ -9,8 +9,6 @@ PQAT (Sparsity-preserving Quantization Aware Training) 예제
 - 스파시티 효과 보존
 - 37-40% 압축율 달성
 
-결과:
-- DS-CNN-L: 36.73% → 40.63% 압축 (PQAT 추가로 3.9% 이득)
 """
 
 import tensorflow as tf
@@ -104,6 +102,7 @@ def main():
         batch_size=128,
         epochs=2,
         validation_data=(val_images, val_labels),
+        callbacks=[tfmot.sparsity.keras.UpdatePruningStep()],
         verbose=0,
     )
     pruned_loss, pruned_accuracy = pruned_model.evaluate(
@@ -150,20 +149,19 @@ def main():
     baseline_tflite = converter.convert()
 
     # 프루닝 모델 (Float32)
-    converter = tf.lite.TFLiteConverter.from_keras_model(model)
+    converter = tf.lite.TFLiteConverter.from_keras_model(model_for_export)
     pruned_tflite = converter.convert()
 
-    # PQAT 모델 (Int8)
+    # PQAT 모델 (Int8 양자화, Float32 입출력)
     converter = tf.lite.TFLiteConverter.from_keras_model(quant_aware_model)
-    converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
-    converter.inference_input_type = tf.int8
-    converter.inference_output_type = tf.int8
+    converter.optimizations = [tf.lite.Optimize.DEFAULT]
 
     def representative_dataset():
         for i in range(100):
             yield [train_images_split[i : i + 1].astype(np.float32)]
 
     converter.representative_dataset = representative_dataset
+    converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
     pqat_tflite = converter.convert()
 
     # 8. 모델 저장

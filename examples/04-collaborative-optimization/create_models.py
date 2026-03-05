@@ -93,9 +93,8 @@ def convert_to_tflite_float32(keras_model):
 def convert_to_tflite_int8(keras_model, train_images):
     """Int8 양자화로 TFLite 변환"""
     converter = tf.lite.TFLiteConverter.from_keras_model(keras_model)
+    converter.optimizations = [tf.lite.Optimize.DEFAULT]
     converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
-    converter.inference_input_type = tf.int8
-    converter.inference_output_type = tf.int8
     converter.representative_dataset = get_representative_data(train_images)
     return converter.convert()
 
@@ -193,7 +192,7 @@ def main():
 
     clustering_params = {
         "number_of_clusters": 16,
-        "cluster_centroids_init": tfmot.clustering.keras.CentroidsInitializer.LINEAR,
+        "cluster_centroids_init": tfmot.clustering.keras.CentroidInitialization.LINEAR,
     }
 
     clustered = tfmot.clustering.keras.cluster_weights(
@@ -273,6 +272,7 @@ def main():
         batch_size=128,
         epochs=2,
         validation_data=(val_images, val_labels),
+        callbacks=[tfmot.sparsity.keras.UpdatePruningStep()],
         verbose=0,
     )
 
@@ -323,6 +323,7 @@ def main():
         batch_size=128,
         epochs=2,
         validation_data=(val_images, val_labels),
+        callbacks=[tfmot.sparsity.keras.UpdatePruningStep()],
         verbose=0,
     )
 
@@ -350,22 +351,13 @@ def main():
     # 7.3 클러스터링 래퍼 제거
     model_for_pc_export = tfmot.clustering.keras.strip_clustering(clustered_pc_model)
 
-    # 7.4 PC Float32 TFLite 변환
-    pc_f32_tflite = convert_to_tflite_float32(model_for_pc_export)
-    pc_f32_path = models_dir / "mnist_model_pc_f32.tflite"
-    pc_f32_path.write_bytes(pc_f32_tflite)
-    pc_f32_size = os.path.getsize(pc_f32_path)
-    print(
-        f"    ✅ PC Float32: {pc_f32_path.name} ({pc_f32_size / 1024:.2f} KB, {pc_f32_size / baseline_size * 100:.1f}%)"
-    )
-
-    # 7.5 PC Int8 TFLite 변환
+    # 7.4 PC TFLite 변환
     pc_int8_tflite = convert_to_tflite_int8(model_for_pc_export, train_images)
-    pc_int8_path = models_dir / "mnist_model_pc_int8.tflite"
+    pc_int8_path = models_dir / "mnist_model_pc.tflite"
     pc_int8_path.write_bytes(pc_int8_tflite)
     pc_int8_size = os.path.getsize(pc_int8_path)
     print(
-        f"    ✅ PC Int8: {pc_int8_path.name} ({pc_int8_size / 1024:.2f} KB, {pc_int8_size / baseline_size * 100:.1f}%)"
+        f"    ✅ PC: {pc_int8_path.name} ({pc_int8_size / 1024:.2f} KB, {pc_int8_size / baseline_size * 100:.1f}%)"
     )
 
     # ===== PCQAT 모델 생성 (완전 최적화) =====
@@ -391,6 +383,7 @@ def main():
         batch_size=128,
         epochs=2,
         validation_data=(val_images, val_labels),
+        callbacks=[tfmot.sparsity.keras.UpdatePruningStep()],
         verbose=0,
     )
 
@@ -457,8 +450,7 @@ def main():
         "Baseline": baseline_path,
         "CQAT": cqat_path,
         "PQAT": pqat_path,
-        "PC-F32": pc_f32_path,
-        "PC-Int8": pc_int8_path,
+        "PC": pc_int8_path,
         "PCQAT": pcqat_path,
     }
 
@@ -487,8 +479,7 @@ def main():
         ("Baseline", baseline_path, baseline_size),
         ("CQAT", cqat_path, cqat_size),
         ("PQAT", pqat_path, pqat_size),
-        ("PC-F32", pc_f32_path, pc_f32_size),
-        ("PC-Int8", pc_int8_path, pc_int8_size),
+        ("PC", pc_int8_path, pc_int8_size),
         ("PCQAT", pcqat_path, pcqat_size),
     ]
 

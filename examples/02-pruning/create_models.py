@@ -326,7 +326,9 @@ def main():
     baseline_size = models_created["Baseline"]
     baseline_accuracy_pct = baseline_accuracy * 100
     for model_name, size in models_created.items():
-        compression = (1 - size / baseline_size) * 100 if model_name != "Baseline" else 0
+        compression = (
+            (1 - size / baseline_size) * 100 if model_name != "Baseline" else 0
+        )
         compression_text = f"{compression:.1f}%"
         inference = inference_results.get(model_name, {})
         accuracy_text = f"{baseline_accuracy_pct:.2f}%"

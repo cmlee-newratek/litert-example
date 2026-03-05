@@ -9,8 +9,6 @@ CQAT (Cluster-preserving Quantization Aware Training) 예제
 - 클러스터링 효과 보존
 - 30-35% 압축율 달성
 
-결과:
-- MobileNetV1: 34.9% → 36.25% 압축 (CQAT 추가로 1.35% 이득)
 """
 
 import tensorflow as tf
@@ -83,7 +81,7 @@ def main():
     print("\n[4] 클러스터링 적용 중... (16개 클러스터)")
     clustering_params = {
         "number_of_clusters": 16,
-        "cluster_centroids_init": tfmot.clustering.keras.CentroidsInitializer.LINEAR,
+        "cluster_centroids_init": tfmot.clustering.keras.CentroidInitialization.LINEAR,
     }
 
     clustered_model = tfmot.clustering.keras.cluster_weights(model, **clustering_params)
@@ -106,13 +104,15 @@ def main():
     )
     print(f"    ✅ 클러스터링 정확도: {clustered_accuracy * 100:.2f}%")
 
-    # 5. 클러스터링 완료 후 QAT 준비
+    # 5. 클러스터링 완료 후 CQAT 준비
     print("\n[5] CQAT 준비 중...")
 
-    # 클러스터링 래퍼 제거
+    # 클러스터링 래퍼 제거 (양자화된 가중치는 유지)
+    # strip_clustering은 래퍼만 제거하므로 클러스터링 효과(모델 크기 감소)는 유지됨
     model_for_export = tfmot.clustering.keras.strip_clustering(clustered_model)
 
-    # QAT를 위해 양자화 인식 모델로 변환
+    # 클러스터링된 모델에 QAT 적용 (추가 양자화)
+    # 결과: 클러스터링 + QAT = CQAT (더 나은 압축 달성)
     quant_aware_model = tfmot.quantization.keras.quantize_model(model_for_export)
 
     quant_aware_model.compile(
@@ -145,20 +145,21 @@ def main():
     baseline_tflite = converter.convert()
 
     # 클러스터링 모델 (Float32)
-    converter = tf.lite.TFLiteConverter.from_keras_model(model)
+    # model_for_export는 strip_clustering된 모델 (래퍼 제거)
+    converter = tf.lite.TFLiteConverter.from_keras_model(model_for_export)
     clustered_tflite = converter.convert()
 
-    # CQAT 모델 (Int8)
+    # CQAT 모델 (Int8 양자화, Float32 입출력)
     converter = tf.lite.TFLiteConverter.from_keras_model(quant_aware_model)
-    converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
-    converter.inference_input_type = tf.int8
-    converter.inference_output_type = tf.int8
+    converter.optimizations = [tf.lite.Optimize.DEFAULT]
 
     def representative_dataset():
         for i in range(100):
             yield [train_images_split[i : i + 1].astype(np.float32)]
 
     converter.representative_dataset = representative_dataset
+    converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+
     cqat_tflite = converter.convert()
 
     # 8. 모델 저장

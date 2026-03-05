@@ -4,7 +4,7 @@
 협업 최적화된 모델들의 성능을 라즈베리파이 4에서 측정합니다.
 
 측정:
-- 4가지 협업 최적화 모델 (CQAT, PQAT, PC, PCQAT)
+- 협업 최적화 모델 (Baseline, CQAT, PQAT, PC, PCQAT)
 - 정확도, 추론 속도, FPS, 모델 크기
 """
 
@@ -235,11 +235,11 @@ def main():
     models_dir = Path(__file__).parent / "mnist_collaborative_models"
 
     models = {
-        "baseline": models_dir / "mnist_model_baseline.tflite",
-        "cqat": models_dir / "mnist_model_cqat.tflite",
-        "pqat": models_dir / "mnist_model_pqat.tflite",
-        "pc_int8": models_dir / "mnist_model_pc_int8.tflite",
-        "pcqat": models_dir / "mnist_model_pcqat.tflite",
+        "Baseline": models_dir / "mnist_model_baseline.tflite",
+        "CQAT": models_dir / "mnist_model_cqat.tflite",
+        "PQAT": models_dir / "mnist_model_pqat.tflite",
+        "PC": models_dir / "mnist_model_pc.tflite",
+        "PCQAT": models_dir / "mnist_model_pcqat.tflite",
     }
 
     results = {
@@ -313,7 +313,7 @@ def main():
         print(
             f"\n{'모델':<20} {'정확도(%)':>12} {'크기(KB)':>12} {'압축률(%)':>12} {'추론(ms)':>12} {'FPS':>10}"
         )
-        print("    " + "-" * 94)
+        print("-" * 94)
         for model_name, result in results["models"].items():
             # accuracy가 "96.61%" 형식이면 % 제거, 아니면 소수점 형식이므로 100 곱하기
             accuracy_str = str(result["accuracy"])
@@ -332,7 +332,7 @@ def main():
             fps_text = f"{fps:.1f}"
 
             print(
-                f"    {model_name:<22} {accuracy_text:>14} {size:>14.2f} {compression_text:>14} {inference:>14.2f} {fps_text:>12}"
+                f"{model_name:<22} {accuracy_text:>14} {size:>14.2f} {compression_text:>14} {inference:>14.2f} {fps_text:>12}"
             )
 
     print("\n🎯 협업 최적화 효과:")

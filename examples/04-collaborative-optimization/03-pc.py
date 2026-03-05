@@ -27,7 +27,6 @@ import tensorflow_model_optimization as tfmot
 import numpy as np
 import pathlib
 import os
-import tempfile
 import gzip
 
 
@@ -116,6 +115,7 @@ def main():
         batch_size=128,
         epochs=2,
         validation_data=(val_images, val_labels),
+        callbacks=[tfmot.sparsity.keras.UpdatePruningStep()],
         verbose=0,
     )
 
@@ -134,7 +134,7 @@ def main():
     print("\n[7] 클러스터링 적용 중... (16 클러스터)")
     clustering_params = {
         "number_of_clusters": 16,
-        "cluster_centroids_init": tfmot.clustering.keras.CentroidsInitializer.LINEAR,
+        "cluster_centroids_init": tfmot.clustering.keras.CentroidInitialization.LINEAR,
     }
 
     clustered_model = tfmot.clustering.keras.cluster_weights(
@@ -204,7 +204,7 @@ def main():
     def representative_data_gen():
         """양자화 대표 데이터 생성"""
         for i in range(100):
-            yield [train_images[i : i + 1]]
+            yield [train_images[i : i + 1].astype(np.float32)]
 
     converter = tf.lite.TFLiteConverter.from_keras_model(model_for_export)
     converter.optimizations = [tf.lite.Optimize.DEFAULT]
@@ -212,8 +212,6 @@ def main():
     converter.target_spec.supported_ops = [
         tf.lite.OpsSet.TFLITE_BUILTINS_INT8,
     ]
-    converter.inference_input_type = tf.int8
-    converter.inference_output_type = tf.int8
 
     pc_int8_tflite_model = converter.convert()
 
@@ -228,12 +226,8 @@ def main():
     print("\n[15] gzip 압축 비율 계산 중...")
 
     def gzip_size(model_bytes):
-        with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
-            with gzip.GzipFile(fileobj=open(tmp_file.name, "wb"), mode="wb") as gz:
-                gz.write(model_bytes)
-            size = os.path.getsize(tmp_file.name)
-            os.remove(tmp_file.name)
-            return size
+        """gzip 압축 크기 계산"""
+        return len(gzip.compress(model_bytes))
 
     baseline_gzip_size = gzip_size(baseline_tflite_model) / 1024
     pc_f32_gzip_size = gzip_size(pc_tflite_model) / 1024
@@ -252,24 +246,23 @@ def main():
 
     print("\n[PC (프루닝 50% + 클러스터링 16) Float32]")
     pc_f32_reduction = (1 - pc_tflite_size / baseline_tflite_size) * 100
-    print(f"  • 정확도: {pruning_accuracy * 100:.2f}% (손실: {baseline_accuracy - pruning_accuracy:.4f})")
+    print(
+        f"  • 정확도: {pruning_accuracy * 100:.2f}% (손실: {baseline_accuracy - pruning_accuracy:.4f})"
+    )
     print(f"  • TFLite 크기: {pc_tflite_size / 1024:.2f} KB")
     print(f"  • 압축 감소: {pc_f32_reduction:.1f}%")
     print(f"  • gzip 압축: {pc_f32_gzip_size:.2f} KB")
 
     print("\n[PC (프루닝 50% + 클러스터링 16) Int8]")
     pc_int8_reduction = (1 - pc_int8_tflite_size / baseline_tflite_size) * 100
-    print(f"  • 정확도: {clustered_accuracy * 100:.2f}% (손실: {baseline_accuracy - clustered_accuracy:.4f})")
+    print(
+        f"  • 정확도: {clustered_accuracy * 100:.2f}% (손실: {baseline_accuracy - clustered_accuracy:.4f})"
+    )
     print(f"  • TFLite 크기: {pc_int8_tflite_size / 1024:.2f} KB")
     print(f"  • 압축 감소: {pc_int8_reduction:.1f}%")
     print(f"  • gzip 압축: {pc_int8_gzip_size:.2f} KB")
 
-    # 16. 모델 저장 (Keras)
-    print("\n[16] Keras 모델 저장 중...")
-    model_for_export.save("mnist_pc_model.h5")
-    print(f"     ✅ Keras 모델 저장: mnist_pc_model.h5")
-
-    # 17. TFLite 모델 정보 출력
+    # 16. TFLite 모델 정보 출력
     print("\n[17] TFLite 모델 정보")
     print(f"     모델들이 {models_dir} 폴더에 저장되었습니다:")
     print(f"     • mnist_model_baseline.tflite: {baseline_tflite_size / 1024:.2f} KB")
