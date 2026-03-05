@@ -507,12 +507,10 @@ def main():
             fps = (
                 f"{1000 / float(inference_ms):.1f}" if inference_ms != "N/A" else "N/A"
             )
-            ratio = (
-                f"{100 - compression:.1f}%" if model_name != "Baseline" else "100.0%"
-            )
+            compression_text = f"{compression:.1f}%"
 
             print(
-                f"{model_name:<22} {accuracy_text:>14} {size_kb:>14.2f} {ratio:>14} {inference_ms:>14} {fps:>12}"
+                f"{model_name:<22} {accuracy_text:>14} {size_kb:>14.2f} {compression_text:>14} {inference_ms:>14} {fps:>12}"
             )
 
     print("\n🎯 협업 최적화 경로:")

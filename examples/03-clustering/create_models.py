@@ -332,7 +332,7 @@ def main():
     inference_ms = f"{inference.get('mean_ms', 0):.2f}" if inference else "N/A"
     fps = f"{1000 / float(inference_ms):.1f}" if inference_ms != "N/A" else "N/A"
     print(
-        f"{'Baseline':<22} {accuracy_text:>14} {baseline_size_kb:>14.2f} {'100.0%':>14} {inference_ms:>14} {fps:>12}"
+        f"{'Baseline':<22} {accuracy_text:>14} {baseline_size_kb:>14.2f} {'0.0%':>14} {inference_ms:>14} {fps:>12}"
     )
 
     # Clustered 모델들
@@ -348,9 +348,9 @@ def main():
             fps = (
                 f"{1000 / float(inference_ms):.1f}" if inference_ms != "N/A" else "N/A"
             )
-            ratio = f"{100 - compression:.1f}%"
+            compression_text = f"{compression:.1f}%"
             print(
-                f"{model_name:<22} {accuracy_text:>14} {clustered_size_kb:>14.2f} {ratio:>14} {inference_ms:>14} {fps:>12}"
+                f"{model_name:<22} {accuracy_text:>14} {clustered_size_kb:>14.2f} {compression_text:>14} {inference_ms:>14} {fps:>12}"
             )
 
     # Clustered + Quant
@@ -362,9 +362,9 @@ def main():
         inference = inference_results.get("Clustered-16+Quant", {})
         inference_ms = f"{inference.get('mean_ms', 0):.2f}" if inference else "N/A"
         fps = f"{1000 / float(inference_ms):.1f}" if inference_ms != "N/A" else "N/A"
-        ratio = f"{100 - compression:.1f}%"
+        compression_text = f"{compression:.1f}%"
         print(
-            f"{'Clustered-16+Quant':<22} {accuracy_text:>14} {quant_size_kb:>14.2f} {ratio:>14} {inference_ms:>14} {fps:>12}"
+            f"{'Clustered-16+Quant':<22} {accuracy_text:>14} {quant_size_kb:>14.2f} {compression_text:>14} {inference_ms:>14} {fps:>12}"
         )
 
     # Clustered + Int8
@@ -376,9 +376,9 @@ def main():
         inference = inference_results.get("Clustered-16+Int8", {})
         inference_ms = f"{inference.get('mean_ms', 0):.2f}" if inference else "N/A"
         fps = f"{1000 / float(inference_ms):.1f}" if inference_ms != "N/A" else "N/A"
-        ratio = f"{100 - compression:.1f}%"
+        compression_text = f"{compression:.1f}%"
         print(
-            f"{'Clustered-16+Int8':<22} {accuracy_text:>14} {int8_size_kb:>14.2f} {ratio:>14} {inference_ms:>14} {fps:>12}"
+            f"{'Clustered-16+Int8':<22} {accuracy_text:>14} {int8_size_kb:>14.2f} {compression_text:>14} {inference_ms:>14} {fps:>12}"
         )
 
     print("\n💾 데이터 파일:")

@@ -326,13 +326,14 @@ def main():
     baseline_size = models_created["Baseline"]
     baseline_accuracy_pct = baseline_accuracy * 100
     for model_name, size in models_created.items():
-        ratio = f"{size / baseline_size * 100:.1f}%"
+        compression = (1 - size / baseline_size) * 100 if model_name != "Baseline" else 0
+        compression_text = f"{compression:.1f}%"
         inference = inference_results.get(model_name, {})
         accuracy_text = f"{baseline_accuracy_pct:.2f}%"
         inference_ms = f"{inference.get('mean_ms', 0):.2f}" if inference else "N/A"
         fps = f"{1000 / float(inference_ms):.1f}" if inference_ms != "N/A" else "N/A"
         print(
-            f"{model_name:<22} {accuracy_text:>14} {size:>14.2f} {ratio:>14} {inference_ms:>14} {fps:>12}"
+            f"{model_name:<22} {accuracy_text:>14} {size:>14.2f} {compression_text:>14} {inference_ms:>14} {fps:>12}"
         )
 
     print("\n📁 저장 위치:")
