@@ -315,10 +315,10 @@ def main():
         )
         print("    " + "-" * 94)
         for model_name, result in results["models"].items():
-            accuracy_pct = result["accuracy"] * 100
+            accuracy_pct = float(result["accuracy"]) * 100
             size = float(result["model_size_kb"])
-            inference = result["inference_ms"]["avg"]
-            fps = result["fps"]
+            inference = float(result["inference_ms"]["avg"])
+            fps = float(result["fps"])
             compression = (1 - size / baseline_size) * 100 if baseline_size > 0 else 0
 
             accuracy_text = f"{accuracy_pct:.2f}%"

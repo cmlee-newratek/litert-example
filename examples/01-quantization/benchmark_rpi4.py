@@ -414,10 +414,10 @@ def main():
 
     for model_name, metrics in results.items():
         if "error" not in metrics:
-            accuracy_pct = metrics["accuracy"] * 100
+            accuracy_pct = float(metrics["accuracy"]) * 100
             size = float(metrics["model_size_kb"])
-            inference = metrics["inference_mean_ms"]
-            fps = metrics["fps"]
+            inference = float(metrics["inference_mean_ms"])
+            fps = float(metrics["fps"])
             compression = (1 - size / baseline_size) * 100 if baseline_size > 0 else 0
 
             accuracy_text = f"{accuracy_pct:.2f}%"
