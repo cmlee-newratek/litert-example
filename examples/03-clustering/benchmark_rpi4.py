@@ -331,7 +331,7 @@ def main():
         print(
             f"\n{'모델':<20} {'정확도(%)':>12} {'크기(KB)':>12} {'압축률(%)':>12} {'추론(ms)':>12} {'FPS':>10}"
         )
-        print("    " + "-" * 94)
+        print("-" * 94)
         for model_name, result in results["models"].items():
             # accuracy가 "96.61%" 형식이면 % 제거, 아니면 소수점 형식이므로 100 곱하기
             accuracy_str = str(result["accuracy"])
@@ -350,7 +350,7 @@ def main():
             fps_text = f"{fps:.1f}"
 
             print(
-                f"    {model_name:<22} {accuracy_text:>14} {size:>14.2f} {compression_text:>14} {inference:>14.2f} {fps_text:>12}"
+                f"{model_name:<22} {accuracy_text:>14} {size:>14.2f} {compression_text:>14} {inference:>14.2f} {fps_text:>12}"
             )
 
     print("\n💾 상세 결과: ./mnist_clustered_models/benchmark_results.json")

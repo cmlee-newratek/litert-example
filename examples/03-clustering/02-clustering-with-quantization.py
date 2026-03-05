@@ -20,7 +20,6 @@ import tensorflow_model_optimization as tfmot
 import numpy as np
 import pathlib
 import os
-import tempfile
 import gzip
 
 
@@ -93,7 +92,7 @@ def main():
     print("\n[6] 클러스터링 설정 중...")
     clustering_params = {
         "number_of_clusters": 16,
-        "cluster_centroids_init": tfmot.clustering.keras.CentroidsInitializer.LINEAR,
+        "cluster_centroids_init": tfmot.clustering.keras.CentroidInitialization.LINEAR,
     }
 
     print("    클러스터 수: 16")
@@ -216,12 +215,7 @@ def main():
 
     def get_gzip_size(model_bytes):
         compressed = gzip.compress(model_bytes)
-        _, temp_path = tempfile.mkstemp(".gz")
-        with open(temp_path, "wb") as f:
-            f.write(compressed)
-        size = os.path.getsize(temp_path)
-        os.remove(temp_path)
-        return size
+        return len(compressed)
 
     baseline_gz_size = get_gzip_size(baseline_tflite_model)
     clustered_gz_size = get_gzip_size(clustered_tflite_model)

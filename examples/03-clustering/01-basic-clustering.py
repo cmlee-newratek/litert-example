@@ -93,7 +93,7 @@ def main():
     # 16개 클러스터로 가중치를 그룹화
     clustering_params = {
         "number_of_clusters": 16,
-        "cluster_centroids_init": tfmot.clustering.keras.CentroidsInitializer.LINEAR,
+        "cluster_centroids_init": tfmot.clustering.keras.CentroidInitialization.LINEAR,
     }
 
     print("    클러스터 수: 16")

@@ -37,7 +37,6 @@ MNIST 데이터셋을 기반으로 TensorFlow 모델을 다양한 방식으로 �
 │   ├── mnist_model_quant_16x8.tflite
 │   └── benchmark_results_rpi4.json          # (Pi) 벤치마크 결과
 │
-├── requirements.txt                         # Python 패키지 의존성
 └── README.md                                # 이 파일
 ```
 
@@ -568,15 +567,3 @@ pip install tensorflow-lite-runtime
 - [LiteRT 양자화 가이드](https://ai.google.dev/edge/litert/conversion/tensorflow/quantization/model_optimization)
 - [TensorFlow Model Optimization](https://www.tensorflow.org/model_optimization)
 - [LiteRT Conversion 가이드](https://ai.google.dev/edge/litert/conversion/tensorflow/convert_tf)
-
----
-
-## 🤝 피드백
-
-이 예제에 대한 피드백과 개선 제안을 환영합니다!
-
----
-
-## 📄 라이선스
-
-Apache 2.0

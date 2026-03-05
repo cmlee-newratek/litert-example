@@ -8,7 +8,7 @@
 2. mnist_model_clustered_8.tflite - 8개 클러스터
 3. mnist_model_clustered_16.tflite - 16개 클러스터
 4. mnist_model_clustered_32.tflite - 32개 클러스터
-5. mnist_model_clustered_16_quant.tflite - 16 클러스터 + 양자화
+5. mnist_model_clustered_16_quant.tflite - 16 클러스터 + 동적 범위 양자화
 6. mnist_model_clustered_16_int8.tflite - 16 클러스터 + Int8 양자화
 
 테스트 데이터도 함께 저장됩니다.
@@ -86,7 +86,7 @@ def apply_clustering(model, num_clusters):
     """클러스터링 적용"""
     clustering_params = {
         "number_of_clusters": num_clusters,
-        "cluster_centroids_init": tfmot.clustering.keras.CentroidsInitializer.LINEAR,
+        "cluster_centroids_init": tfmot.clustering.keras.CentroidInitialization.LINEAR,
     }
 
     clustered_model = tfmot.clustering.keras.cluster_weights(model, **clustering_params)
@@ -270,7 +270,7 @@ def main():
 
     rep_data_gen = representative_data_generator(train_images)
     clustered_int8_tflite = convert_to_tflite(
-        model_for_export, int8_quantize=True, representative_data=rep_data_gen()
+        model_for_export, int8_quantize=True, representative_data=rep_data_gen
     )
     clustered_int8_path = models_dir / "mnist_model_clustered_16_int8.tflite"
     clustered_int8_path.write_bytes(clustered_int8_tflite)
