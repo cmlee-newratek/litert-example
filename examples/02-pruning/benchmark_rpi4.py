@@ -421,6 +421,7 @@ def main():
     if not baseline_size and results:
         # Baseline이 없으면 첫 번째 모델을 baseline으로 사용
         baseline_size = next(iter(results.values()))["model_size_kb"]
+    baseline_size = float(baseline_size) if baseline_size else 0
 
     print(
         f"\n{'모델':<20} {'정확도(%)':>12} {'크기(KB)':>12} {'압축률(%)':>12} {'추론(ms)':>12} {'FPS':>10}"
@@ -430,7 +431,7 @@ def main():
     for model_name, metrics in results.items():
         if "error" not in metrics:
             accuracy_pct = metrics["accuracy"] * 100
-            size = metrics["model_size_kb"]
+            size = float(metrics["model_size_kb"])
             inference = metrics["inference_mean_ms"]
             fps = metrics["fps"]
             compression = (1 - size / baseline_size) * 100 if baseline_size > 0 else 0

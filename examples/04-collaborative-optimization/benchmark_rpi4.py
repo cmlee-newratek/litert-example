@@ -308,6 +308,7 @@ def main():
         if not baseline_size and results["models"]:
             # Baseline이 없으면 첫 번째 모델을 baseline으로 사용
             baseline_size = next(iter(results["models"].values()))["model_size_kb"]
+        baseline_size = float(baseline_size) if baseline_size else 0
 
         print(
             f"\n{'모델':<20} {'정확도(%)':>12} {'크기(KB)':>12} {'압축률(%)':>12} {'추론(ms)':>12} {'FPS':>10}"
@@ -315,7 +316,7 @@ def main():
         print("    " + "-" * 94)
         for model_name, result in results["models"].items():
             accuracy_pct = result["accuracy"] * 100
-            size = result["model_size_kb"]
+            size = float(result["model_size_kb"])
             inference = result["inference_ms"]["avg"]
             fps = result["fps"]
             compression = (1 - size / baseline_size) * 100 if baseline_size > 0 else 0
