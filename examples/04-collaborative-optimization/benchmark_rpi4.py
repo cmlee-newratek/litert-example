@@ -315,7 +315,13 @@ def main():
         )
         print("    " + "-" * 94)
         for model_name, result in results["models"].items():
-            accuracy_pct = float(result["accuracy"]) * 100
+            # accuracy가 "96.61%" 형식이면 % 제거, 아니면 소수점 형식이므로 100 곱하기
+            accuracy_str = str(result["accuracy"])
+            if "%" in accuracy_str:
+                accuracy_pct = float(accuracy_str.replace("%", ""))
+            else:
+                accuracy_pct = float(accuracy_str) * 100
+
             size = float(result["model_size_kb"])
             inference = float(result["inference_ms"]["avg"])
             fps = float(result["fps"])
