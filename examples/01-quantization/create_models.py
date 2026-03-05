@@ -238,16 +238,24 @@ def main():
     print("모델 생성 완료")
     print("=" * 70)
     print(f"\n저장 경로: {models_dir.absolute()}")
-    print("\n생성된 모델들:")
-    print(f"{'모델':<16} {'크기(KB)':>10} {'압축율(%)':>10} {'추론(ms)':>10}")
-    print("-" * 52)
+    print("\n생성된 모델:")
+    print(
+        f"{'모델':<20} {'정확도(%)':>12} {'크기(KB)':>12} {'압축률(%)':>12} {'추론(ms)':>12} {'FPS':>10}"
+    )
+    print("-" * 94)
 
+    baseline_accuracy_pct = baseline_accuracy * 100
+    float32_size = models_created["Float32"]
     for model_name, size in models_created.items():
         compression = (1 - size / float32_size) * 100 if model_name != "Float32" else 0
         inference_ms = inference_times.get(model_name)
+        fps = 1000 / inference_ms if inference_ms else 0
+        accuracy_text = f"{baseline_accuracy_pct:.2f}%"
         inference_text = f"{inference_ms:.2f}" if inference_ms is not None else "N/A"
+        fps_text = f"{fps:.1f}" if inference_ms else "N/A"
+        compression_text = f"{compression:.1f}%"
         print(
-            f"{model_name:<16} {size:>10.2f} {compression:>9.1f} % {inference_text:>10}"
+            f"{model_name:<22} {accuracy_text:>14} {size:>14.2f} {compression_text:>14} {inference_text:>14} {fps_text:>12}"
         )
 
     print("\n" + "=" * 70)

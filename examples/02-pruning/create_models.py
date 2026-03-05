@@ -15,6 +15,7 @@ import tensorflow_model_optimization as tfmot
 import numpy as np
 import pathlib
 import os
+import time
 
 
 def create_and_train_model(train_images, train_labels, val_images, val_labels):
@@ -136,6 +137,52 @@ def save_tflite_model(
     return size_kb
 
 
+def benchmark_inference(model_path, test_images, num_runs=100):
+    """TFLite 모델의 추론 속도 벤치마크"""
+    interpreter = tf.lite.Interpreter(model_path=str(model_path))
+    interpreter.allocate_tensors()
+
+    input_details = interpreter.get_input_details()[0]
+    output_details = interpreter.get_output_details()[0]
+    input_index = input_details["index"]
+
+    # 워밍업 (첫 1회 실행은 느릴 수 있음)
+    test_image = test_images[0]
+    if input_details["dtype"] == np.int8:
+        input_scale, input_zero_point = input_details["quantization"]
+        test_image = test_image / input_scale + input_zero_point
+        test_image = np.expand_dims(test_image, axis=0).astype(np.int8)
+    else:
+        test_image = np.expand_dims(test_image, axis=0).astype(np.float32)
+    interpreter.set_tensor(input_index, test_image)
+    interpreter.invoke()
+
+    # 실제 벤치마크
+    times = []
+    for _ in range(num_runs):
+        test_image = test_images[0]
+        if input_details["dtype"] == np.int8:
+            input_scale, input_zero_point = input_details["quantization"]
+            test_image = test_image / input_scale + input_zero_point
+            test_image = np.expand_dims(test_image, axis=0).astype(np.int8)
+        else:
+            test_image = np.expand_dims(test_image, axis=0).astype(np.float32)
+
+        start = time.time()
+        interpreter.set_tensor(input_index, test_image)
+        interpreter.invoke()
+        times.append((time.time() - start) * 1000)
+
+    times = np.array(times)
+    return {
+        "mean_ms": np.mean(times),
+        "median_ms": np.median(times),
+        "min_ms": np.min(times),
+        "max_ms": np.max(times),
+        "std_ms": np.std(times),
+    }
+
+
 def main():
     print("=" * 70)
     print("프루닝 모델 생성 스크립트")
@@ -251,14 +298,42 @@ def main():
     print("✅ 모든 모델 생성 완료!")
     print("=" * 70)
 
-    print("\n📊 생성된 모델:")
-    print(f"{'모델':<20} {'크기 (KB)':<15} {'압축률':<10}")
-    print("-" * 50)
+    # 8. 추론 속도 벤치마크
+    print("\n[8] 추론 속도 벤치마크 중...")
+    print("-" * 70)
+
+    inference_results = {}
+    for model_name, filename in [
+        ("Baseline", "mnist_model_baseline.tflite"),
+        ("Pruned", "mnist_model_pruned.tflite"),
+        ("Baseline+Quant", "mnist_model_baseline_quant.tflite"),
+        ("Pruned+Quant", "mnist_model_pruned_quant.tflite"),
+        ("Pruned+Int8", "mnist_model_pruned_int8.tflite"),
+    ]:
+        model_path = models_dir / filename
+        if model_path.exists():
+            print(f"  {model_name} 벤치마크 중...")
+            metrics = benchmark_inference(model_path, test_images, num_runs=50)
+            inference_results[model_name] = metrics
+            print(f"    ✅ 평균 추론 시간: {metrics['mean_ms']:.2f} ms")
+
+    print("\n생성된 모델:")
+    print(
+        f"{'모델':<20} {'정확도(%)':>12} {'크기(KB)':>12} {'압축률(%)':>12} {'추론(ms)':>12} {'FPS':>10}"
+    )
+    print("-" * 94)
 
     baseline_size = models_created["Baseline"]
+    baseline_accuracy_pct = baseline_accuracy * 100
     for model_name, size in models_created.items():
         ratio = f"{size / baseline_size * 100:.1f}%"
-        print(f"{model_name:<20} {size:<15.2f} {ratio:<10}")
+        inference = inference_results.get(model_name, {})
+        accuracy_text = f"{baseline_accuracy_pct:.2f}%"
+        inference_ms = f"{inference.get('mean_ms', 0):.2f}" if inference else "N/A"
+        fps = f"{1000 / float(inference_ms):.1f}" if inference_ms != "N/A" else "N/A"
+        print(
+            f"{model_name:<22} {accuracy_text:>14} {size:>14.2f} {ratio:>14} {inference_ms:>14} {fps:>12}"
+        )
 
     print("\n📁 저장 위치:")
     print(f"   {models_dir.absolute()}")

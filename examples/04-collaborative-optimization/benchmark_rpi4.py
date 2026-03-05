@@ -302,17 +302,30 @@ def main():
 
     if results["models"]:
         print("\n📊 벤치마크 결과 요약:")
+
+        # Baseline 크기 찾기 (압축률 계산용)
+        baseline_size = results["models"].get("Baseline", {}).get("model_size_kb", 0)
+        if not baseline_size and results["models"]:
+            # Baseline이 없으면 첫 번째 모델을 baseline으로 사용
+            baseline_size = next(iter(results["models"].values()))["model_size_kb"]
+
         print(
-            f"    {'모델':<20} {'크기':<12} {'정확도':<12} {'평균 추론':<12} {'FPS':<10}"
+            f"\n{'모델':<20} {'정확도(%)':>12} {'크기(KB)':>12} {'압축률(%)':>12} {'추론(ms)':>12} {'FPS':>10}"
         )
-        print("    " + "-" * 65)
+        print("    " + "-" * 94)
         for model_name, result in results["models"].items():
+            accuracy_pct = result["accuracy"] * 100
+            size = result["model_size_kb"]
+            inference = result["inference_ms"]["avg"]
+            fps = result["fps"]
+            compression = (1 - size / baseline_size) * 100 if baseline_size > 0 else 0
+
+            accuracy_text = f"{accuracy_pct:.2f}%"
+            compression_text = f"{compression:.1f}%"
+            fps_text = f"{fps:.1f}"
+
             print(
-                f"    {model_name:<20} "
-                f"{result['model_size_kb']:<12.2f} "
-                f"{result['accuracy'] * 100:<12.2f} "
-                f"{result['inference_ms']['avg']:<12.2f} "
-                f"{result['fps']:<10.1f}"
+                f"    {model_name:<22} {accuracy_text:>14} {size:>14.2f} {compression_text:>14} {inference:>14.2f} {fps_text:>12}"
             )
 
     print("\n🎯 협업 최적화 효과:")

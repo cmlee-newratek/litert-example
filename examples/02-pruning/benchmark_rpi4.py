@@ -416,17 +416,31 @@ def main():
     if baseline_accuracy:
         print(f"\n기준 모델 (Baseline) 정확도: {baseline_accuracy * 100:.2f}%")
 
-    print(f"\n{'모델':<18} {'정확도':<12} {'크기(KB)':<12} {'추론(ms)':<12} {'FPS':<8}")
-    print("-" * 70)
+    # Baseline 크기 찾기 (압축률 계산용)
+    baseline_size = results.get("Baseline", {}).get("model_size_kb", 0)
+    if not baseline_size and results:
+        # Baseline이 없으면 첫 번째 모델을 baseline으로 사용
+        baseline_size = next(iter(results.values()))["model_size_kb"]
+
+    print(
+        f"\n{'모델':<20} {'정확도(%)':>12} {'크기(KB)':>12} {'압축률(%)':>12} {'추론(ms)':>12} {'FPS':>10}"
+    )
+    print("-" * 94)
 
     for model_name, metrics in results.items():
         if "error" not in metrics:
-            accuracy = metrics["accuracy"]
+            accuracy_pct = metrics["accuracy"] * 100
             size = metrics["model_size_kb"]
             inference = metrics["inference_mean_ms"]
             fps = metrics["fps"]
+            compression = (1 - size / baseline_size) * 100 if baseline_size > 0 else 0
+
+            accuracy_text = f"{accuracy_pct:.2f}%"
+            compression_text = f"{compression:.1f}%"
+            fps_text = f"{fps:.1f}"
+
             print(
-                f"{model_name:<18} {accuracy:<12} {size:<12} {inference:<12} {fps:<8}"
+                f"{model_name:<22} {accuracy_text:>14} {size:>14.2f} {compression_text:>14} {inference:>14.2f} {fps_text:>12}"
             )
 
     print("\n💡 주요 인사이트:")

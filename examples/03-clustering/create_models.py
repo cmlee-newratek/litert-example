@@ -20,6 +20,7 @@ import tensorflow_model_optimization as tfmot
 import numpy as np
 import pathlib
 import os
+import time
 
 
 def create_model():
@@ -127,6 +128,51 @@ def representative_data_generator(train_images):
     return generator
 
 
+def benchmark_inference(model_path, test_images, num_runs=50):
+    """TFLite 모델의 추론 속도 벤치마크"""
+    interpreter = tf.lite.Interpreter(model_path=str(model_path))
+    interpreter.allocate_tensors()
+
+    input_details = interpreter.get_input_details()[0]
+    input_index = input_details["index"]
+
+    # 워밍업
+    test_image = test_images[0]
+    if input_details["dtype"] == np.int8:
+        input_scale, input_zero_point = input_details["quantization"]
+        test_image = test_image / input_scale + input_zero_point
+        test_image = np.expand_dims(test_image, axis=0).astype(np.int8)
+    else:
+        test_image = np.expand_dims(test_image, axis=0).astype(np.float32)
+    interpreter.set_tensor(input_index, test_image)
+    interpreter.invoke()
+
+    # 벤치마크
+    times = []
+    for _ in range(num_runs):
+        test_image = test_images[0]
+        if input_details["dtype"] == np.int8:
+            input_scale, input_zero_point = input_details["quantization"]
+            test_image = test_image / input_scale + input_zero_point
+            test_image = np.expand_dims(test_image, axis=0).astype(np.int8)
+        else:
+            test_image = np.expand_dims(test_image, axis=0).astype(np.float32)
+
+        start = time.time()
+        interpreter.set_tensor(input_index, test_image)
+        interpreter.invoke()
+        times.append((time.time() - start) * 1000)
+
+    times = np.array(times)
+    return {
+        "mean_ms": np.mean(times),
+        "median_ms": np.median(times),
+        "min_ms": np.min(times),
+        "max_ms": np.max(times),
+        "std_ms": np.std(times),
+    }
+
+
 def main():
     print("=" * 70)
     print("클러스터된 MNIST 모델 배치 생성")
@@ -152,6 +198,12 @@ def main():
     model = create_model()
     train_model(model, train_images, train_labels, val_images, val_labels)
     print("     ✅ 기본 모델 훈련 완료")
+
+    # 3-1. 기본 모델의 정확도 측정
+    baseline_loss, baseline_accuracy = model.evaluate(
+        test_images, test_labels, verbose=0
+    )
+    print(f"     ✅ 기본 모델 정확도: {baseline_accuracy * 100:.2f}%")
 
     # 4. Float32 기본 모델 변환
     print("\n[4] Float32 기본 모델 변환 중...")
@@ -239,22 +291,95 @@ def main():
     print(f"     ✅ {test_images_path.name}")
     print(f"     ✅ {test_labels_path.name}")
 
-    # 9. 요약
+    # 9. 추론 속도 벤치마크
+    print("\n[9] 추론 속도 벤치마크 중...")
+    print("-" * 70)
+
+    inference_results = {}
+    model_files = {
+        "Baseline": models_dir / "mnist_model_baseline.tflite",
+        "Clustered-8": models_dir / "mnist_model_clustered_8.tflite",
+        "Clustered-16": models_dir / "mnist_model_clustered_16.tflite",
+        "Clustered-32": models_dir / "mnist_model_clustered_32.tflite",
+        "Clustered-16+Quant": models_dir / "mnist_model_clustered_16_quant.tflite",
+        "Clustered-16+Int8": models_dir / "mnist_model_clustered_16_int8.tflite",
+    }
+
+    for model_name, model_path in model_files.items():
+        if model_path.exists():
+            print(f"  {model_name} 벤치마크 중...")
+            metrics = benchmark_inference(model_path, test_images, num_runs=50)
+            inference_results[model_name] = metrics
+            print(f"    ✅ 평균 추론 시간: {metrics['mean_ms']:.2f} ms")
+
+    # 10. 요약
     print("\n" + "=" * 70)
     print("✅ 배치 생성 완료!")
     print("=" * 70)
 
-    print("\n📊 생성된 모델:")
-    print(f"   • mnist_model_baseline.tflite ({baseline_size / 1024:.2f} KB)")
-    print("   • mnist_model_clustered_8.tflite")
-    print("   • mnist_model_clustered_16.tflite")
-    print("   • mnist_model_clustered_32.tflite")
+    print("\n생성된 모델:")
     print(
-        f"   • mnist_model_clustered_16_quant.tflite ({clustered_quant_size / 1024:.2f} KB)"
+        f"{'모델':<20} {'정확도(%)':>12} {'크기(KB)':>12} {'압축률(%)':>12} {'추론(ms)':>12} {'FPS':>10}"
     )
+    print("-" * 94)
+
+    baseline_size_kb = baseline_size / 1024
+    baseline_accuracy_pct = baseline_accuracy * 100
+
+    # Baseline
+    inference = inference_results.get("Baseline", {})
+    accuracy_text = f"{baseline_accuracy_pct:.2f}%"
+    inference_ms = f"{inference.get('mean_ms', 0):.2f}" if inference else "N/A"
+    fps = f"{1000 / float(inference_ms):.1f}" if inference_ms != "N/A" else "N/A"
     print(
-        f"   • mnist_model_clustered_16_int8.tflite ({clustered_int8_size / 1024:.2f} KB)"
+        f"{'Baseline':<22} {accuracy_text:>14} {baseline_size_kb:>14.2f} {'100.0%':>14} {inference_ms:>14} {fps:>12}"
     )
+
+    # Clustered 모델들
+    for num_clusters in [8, 16, 32]:
+        model_path = models_dir / f"mnist_model_clustered_{num_clusters}.tflite"
+        if model_path.exists():
+            clustered_size_kb = os.path.getsize(model_path) / 1024
+            compression = (1 - clustered_size_kb / baseline_size_kb) * 100
+
+            model_name = f"Clustered-{num_clusters}"
+            inference = inference_results.get(model_name, {})
+            inference_ms = f"{inference.get('mean_ms', 0):.2f}" if inference else "N/A"
+            fps = (
+                f"{1000 / float(inference_ms):.1f}" if inference_ms != "N/A" else "N/A"
+            )
+            ratio = f"{100 - compression:.1f}%"
+            print(
+                f"{model_name:<22} {accuracy_text:>14} {clustered_size_kb:>14.2f} {ratio:>14} {inference_ms:>14} {fps:>12}"
+            )
+
+    # Clustered + Quant
+    quant_path = models_dir / "mnist_model_clustered_16_quant.tflite"
+    if quant_path.exists():
+        quant_size_kb = clustered_quant_size / 1024
+        compression = (1 - quant_size_kb / baseline_size_kb) * 100
+
+        inference = inference_results.get("Clustered-16+Quant", {})
+        inference_ms = f"{inference.get('mean_ms', 0):.2f}" if inference else "N/A"
+        fps = f"{1000 / float(inference_ms):.1f}" if inference_ms != "N/A" else "N/A"
+        ratio = f"{100 - compression:.1f}%"
+        print(
+            f"{'Clustered-16+Quant':<22} {accuracy_text:>14} {quant_size_kb:>14.2f} {ratio:>14} {inference_ms:>14} {fps:>12}"
+        )
+
+    # Clustered + Int8
+    int8_path = models_dir / "mnist_model_clustered_16_int8.tflite"
+    if int8_path.exists():
+        int8_size_kb = clustered_int8_size / 1024
+        compression = (1 - int8_size_kb / baseline_size_kb) * 100
+
+        inference = inference_results.get("Clustered-16+Int8", {})
+        inference_ms = f"{inference.get('mean_ms', 0):.2f}" if inference else "N/A"
+        fps = f"{1000 / float(inference_ms):.1f}" if inference_ms != "N/A" else "N/A"
+        ratio = f"{100 - compression:.1f}%"
+        print(
+            f"{'Clustered-16+Int8':<22} {accuracy_text:>14} {int8_size_kb:>14.2f} {ratio:>14} {inference_ms:>14} {fps:>12}"
+        )
 
     print("\n💾 데이터 파일:")
     print("   • mnist_test_images.npy")

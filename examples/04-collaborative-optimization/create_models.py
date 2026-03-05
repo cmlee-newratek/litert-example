@@ -14,6 +14,7 @@ import tensorflow_model_optimization as tfmot
 import numpy as np
 import pathlib
 import os
+import time
 
 
 def create_model():
@@ -99,6 +100,51 @@ def convert_to_tflite_int8(keras_model, train_images):
     return converter.convert()
 
 
+def benchmark_inference(model_path, test_images, num_runs=50):
+    """TFLite 모델의 추론 속도 벤치마크"""
+    interpreter = tf.lite.Interpreter(model_path=str(model_path))
+    interpreter.allocate_tensors()
+
+    input_details = interpreter.get_input_details()[0]
+    input_index = input_details["index"]
+
+    # 워밍업
+    test_image = test_images[0]
+    if input_details["dtype"] == np.int8:
+        input_scale, input_zero_point = input_details["quantization"]
+        test_image = test_image / input_scale + input_zero_point
+        test_image = np.expand_dims(test_image, axis=0).astype(np.int8)
+    else:
+        test_image = np.expand_dims(test_image, axis=0).astype(np.float32)
+    interpreter.set_tensor(input_index, test_image)
+    interpreter.invoke()
+
+    # 벤치마크
+    times = []
+    for _ in range(num_runs):
+        test_image = test_images[0]
+        if input_details["dtype"] == np.int8:
+            input_scale, input_zero_point = input_details["quantization"]
+            test_image = test_image / input_scale + input_zero_point
+            test_image = np.expand_dims(test_image, axis=0).astype(np.int8)
+        else:
+            test_image = np.expand_dims(test_image, axis=0).astype(np.float32)
+
+        start = time.time()
+        interpreter.set_tensor(input_index, test_image)
+        interpreter.invoke()
+        times.append((time.time() - start) * 1000)
+
+    times = np.array(times)
+    return {
+        "mean_ms": np.mean(times),
+        "median_ms": np.median(times),
+        "min_ms": np.min(times),
+        "max_ms": np.max(times),
+        "std_ms": np.std(times),
+    }
+
+
 def main():
     print("=" * 70)
     print("협업 최적화 모델 배치 생성")
@@ -122,6 +168,12 @@ def main():
     baseline_model = create_model()
     train_model(baseline_model, train_images, train_labels, val_images, val_labels)
     print("    ✅ 기본 모델 훈련 완료")
+
+    # 3-1. 기본 모델의 정확도 측정
+    baseline_loss, baseline_accuracy = baseline_model.evaluate(
+        test_images, test_labels, verbose=0
+    )
+    print(f"    ✅ 기본 모델 정확도: {baseline_accuracy * 100:.2f}%")
 
     # 4. 기본 모델 TFLite 변환
     print("\n[4] 기본 모델 TFLite 변환 중...")
@@ -396,28 +448,72 @@ def main():
     np.save(models_dir / "mnist_test_labels.npy", test_labels)
     print("    ✅ 테스트 데이터 저장 완료")
 
-    # 9. 요약
+    # 10. 추론 속도 벤치마크
+    print("\n[10] 추론 속도 벤치마크 중...")
+    print("-" * 70)
+
+    inference_results = {}
+    model_files = {
+        "Baseline": baseline_path,
+        "CQAT": cqat_path,
+        "PQAT": pqat_path,
+        "PC-F32": pc_f32_path,
+        "PC-Int8": pc_int8_path,
+        "PCQAT": pcqat_path,
+    }
+
+    for model_name, model_path in model_files.items():
+        if model_path.exists():
+            print(f"  {model_name} 벤치마크 중...")
+            metrics = benchmark_inference(model_path, test_images, num_runs=50)
+            inference_results[model_name] = metrics
+            print(f"    ✅ 평균 추론 시간: {metrics['mean_ms']:.2f} ms")
+
+    # 11. 요약
     print("\n" + "=" * 70)
     print("✅ 협업 최적화 모델 배치 생성 완료!")
     print("=" * 70)
 
-    print("\n📦 생성된 모델:")
-    print(f"   • {baseline_path.name:40} {baseline_size / 1024:>8.2f} KB (100.0%)")
+    print("\n생성된 모델:")
     print(
-        f"   • {cqat_path.name:40} {cqat_size / 1024:>8.2f} KB ({cqat_size / baseline_size * 100:>6.1f}%)"
+        f"{'모델':<20} {'정확도(%)':>12} {'크기(KB)':>12} {'압축률(%)':>12} {'추론(ms)':>12} {'FPS':>10}"
     )
-    print(
-        f"   • {pqat_path.name:40} {pqat_size / 1024:>8.2f} KB ({pqat_size / baseline_size * 100:>6.1f}%)"
-    )
-    print(
-        f"   • {pc_f32_path.name:40} {pc_f32_size / 1024:>8.2f} KB ({pc_f32_size / baseline_size * 100:>6.1f}%)"
-    )
-    print(
-        f"   • {pc_int8_path.name:40} {pc_int8_size / 1024:>8.2f} KB ({pc_int8_size / baseline_size * 100:>6.1f}%)"
-    )
-    print(
-        f"   • {pcqat_path.name:40} {pcqat_size / 1024:>8.2f} KB ({pcqat_size / baseline_size * 100:>6.1f}%)"
-    )
+    print("-" * 94)
+
+    baseline_size_kb = baseline_size / 1024
+    baseline_accuracy_pct = baseline_accuracy * 100
+
+    models_to_show = [
+        ("Baseline", baseline_path, baseline_size),
+        ("CQAT", cqat_path, cqat_size),
+        ("PQAT", pqat_path, pqat_size),
+        ("PC-F32", pc_f32_path, pc_f32_size),
+        ("PC-Int8", pc_int8_path, pc_int8_size),
+        ("PCQAT", pcqat_path, pcqat_size),
+    ]
+
+    for model_name, model_path, size in models_to_show:
+        if model_path.exists():
+            size_kb = size / 1024
+            compression = (
+                (1 - size_kb / baseline_size_kb) * 100
+                if model_name != "Baseline"
+                else 0
+            )
+
+            inference = inference_results.get(model_name, {})
+            accuracy_text = f"{baseline_accuracy_pct:.2f}%"
+            inference_ms = f"{inference.get('mean_ms', 0):.2f}" if inference else "N/A"
+            fps = (
+                f"{1000 / float(inference_ms):.1f}" if inference_ms != "N/A" else "N/A"
+            )
+            ratio = (
+                f"{100 - compression:.1f}%" if model_name != "Baseline" else "100.0%"
+            )
+
+            print(
+                f"{model_name:<22} {accuracy_text:>14} {size_kb:>14.2f} {ratio:>14} {inference_ms:>14} {fps:>12}"
+            )
 
     print("\n🎯 협업 최적화 경로:")
     print("   1. CQAT:  클러스터링 → 양자화 인식 훈련")
